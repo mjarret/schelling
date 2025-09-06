@@ -1,14 +1,49 @@
+#include <cstdint>
+#include <cstdlib>
 #include <iostream>
-#include <exception>
-#include "../include/cli/cli.hpp"
-#include "../include/app/app.hpp"
+#include <string>
+#include <chrono>
+
+#include "graphs/lollipop_graph.hpp"
+#include "experiment/simulator.hpp"
+
+#ifndef K
+#define K 2
+#endif
+
+#ifndef N
+#define N 64
+#endif
+
+static void print_help(const char* prog) {
+    std::cout << "Usage: " << prog << " [options]\n"
+              << "Options:\n"
+              << "  --help                 Show this help\n"
+              << "  --seed <u64>           RNG seed\n"
+              << "  --steps <u64>          Max steps (default 100000)\n"
+              << "  --stats-every <u64>    Snapshot interval (default 1000)\n"
+              << "  --quiet                Suppress summary output\n"
+              << "  --n <n>                Number of vertices (default compile-time)\n";
+}
 
 int main(int argc, char** argv) {
-    try {
-        CLIOptions opt = parse_cli(argc, argv);
-        return run_app(opt);
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << "\n";
-        return 1;
+    using Graph = graphs::LollipopGraph<K>;
+
+    uint64_t seed = 0; bool seed_set = false;
+    uint64_t max_steps = 100000; uint64_t stats_every = 1000; bool quiet = false;
+    std::size_t n = N;
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--help") { print_help(argv[0]); return 0; }
+        else if (arg == "--seed" && i + 1 < argc) { seed = std::strtoull(argv[++i], nullptr, 10); seed_set = true; }
+        else if (arg == "--steps" && i + 1 < argc) { max_steps = std::strtoull(argv[++i], nullptr, 10); }
+        else if (arg == "--n" && i + 1 < argc) { n = std::strtoull(argv[++i], nullptr, 10); }
+        else if (arg == "--epsilon" && i + 1 < argc) { /* epsilon = std::stod(argv[++i]); */ }
+        else { std::cerr << "Unknown or incomplete option: " << arg << "\n"; print_help(argv[0]); return 2; }
     }
+
+    if (!seed_set) seed = static_cast<uint64_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+  
+    return 0;
 }
