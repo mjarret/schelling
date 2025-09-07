@@ -17,14 +17,16 @@ struct Transition {
 template <class Graph, class Rng>
 inline std::pair<std::size_t, std::size_t> random_transition(const Graph& g, Rng& rng) {
     const std::size_t n = g.size();
+    if (n <= 1) return {0, 0};
 
-    const std::size_t from = rng.uniform_index(n);
-    while(g.local_frustration(from) == 0) {
+    std::size_t from = rng.uniform_index(n);
+    // Find an occupied, unhappy vertex (bounded attempts)
+    for (int t = 0; t < 16 && g.local_frustration(from) == 0; ++t) {
         from = rng.uniform_index(n);
     }
-    
+
     std::size_t to = rng.uniform_index(n);
-    while(g.get_color(to) != 0 || to == from) {
+    for (int t = 0; t < 32 && (g.get_color(to) != 0 || to == from); ++t) {
         to = rng.uniform_index(n);
     }
     return {from, to};

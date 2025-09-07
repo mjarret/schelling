@@ -4,33 +4,36 @@
 #include <array>
 #include <cassert>
 
-#include "core/graph_base.hpp"
+#include "graphs/core/graph_base.hpp"
+#include <algorithm>
+#include <numeric>
 
 namespace graphs {
 
 template <std::size_t K>
-class CliqueGraph : public GraphBase<CliqueGraph<K>> {
+class CliqueGraph : public GraphBase<CliqueGraph<K>, K> {
 public:
-    using GraphBase::num_vertices;
-    using GraphBase::tf;
-    using GraphBase::counts;
+    using Base = GraphBase<CliqueGraph<K>, K>;
+    using Base::num_vertices;
+    using Base::tf;
+    using Base::counts;
 
     static_assert(K >= 1, "K must be at least 1");
 
-    explicit CliqueGraph(index_t n, std::array<uint64_t, K> c) : num_vertices(n), counts(c) {}
+    explicit CliqueGraph(index_t n) { num_vertices = n; counts.fill(0); tf = static_cast<uint64_t>(-1); }
+    explicit CliqueGraph(index_t n, const std::array<uint64_t, K>& c) { num_vertices = n; counts = c; tf = static_cast<uint64_t>(-1); }
 
-    uint64_t local_frustration(index_t v)   const { return total_occupied() - counts[get_color(v)]; }
+    uint64_t local_frustration(index_t v)   const { (void)v; return this->total_occupied() - counts[get_color(v)]; }
     uint64_t total_frustration() const {
-        if (tf == static_cast<uint64_t>(-1)) return tf;
-        tf = total_occupied() * total_occupied(); // (n - counts[0])^2
-        for (size_t k = 1; k < K; ++k) {
-            tf -= counts[k] * counts[k]; // - sum(counts[k]^2)
-        }
-        tf /= 2; // each edge counted twice
-        return tf; // Is now = (edges^2 - local_edges^2)) / 2
+        if (tf != static_cast<uint64_t>(-1)) return tf;
+        const std::uint64_t occ = this->total_occupied(); // (n - counts[0])
+        std::uint64_t sumsq = 0;
+        for (std::size_t k = 1; k < K; ++k) sumsq += counts[k] * counts[k];
+        tf = (occ * occ - sumsq) / 2ULL; // each edge counted twice
+        return tf;
     }
 
-    void set_colors(const std::array<uint64_t, K>& color_counts) { counts = color_counts; }
+    void set_colors(const std::array<uint64_t, K>& color_counts) { counts = color_counts; tf = static_cast<uint64_t>(-1); }
 
     index_t get_color(index_t v) const {
         // Use std::partial_sum and std::upper_bound for efficiency and clarity
@@ -40,16 +43,17 @@ public:
         return static_cast<index_t>(std::distance(prefix.begin(), it));
     }
     
-    void change_color(index_t v, uint32_t c, uint32_t c_original = get_color(v)) {
-        // Adjust total frustration by removing old contribution and adding new one
-        // total_frustration -= total_occupied() - counts[c_original];
-        // total_frustration += total_occupied() - (counts[c] + 1); // -1 because v itself is changing color
-        total_frustration += counts[c_original] - counts[c] - 1;
-        
-        // Update color counts
-        --counts[c_original];
-        ++counts[c];        
+    void change_color(index_t v, uint32_t c, uint32_t c_original) {
+        (void)v; // We model clique by counts only; v is not used for storage
+        if (c == c_original) return;
+        if (c_original < K+1) { if (counts[c_original] > 0) --counts[c_original]; }
+        if (c < K+1) { ++counts[c]; }
+        tf = static_cast<uint64_t>(-1);
     }
+
+    void change_color(index_t v, uint32_t c) { change_color(v, c, static_cast<uint32_t>(get_color(v))); }
+
+    std::uint64_t color_count(std::uint32_t c) const { return counts[c]; }
    
 };
 

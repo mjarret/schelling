@@ -3,20 +3,23 @@
 #include <cstdint>
 #include <array>
 #include <cassert>
-#include "core/graph_base.hpp"
+#include "graphs/core/graph_base.hpp"
 #include "clique_graph.hpp"
 #include "path_graph.hpp"
 
 namespace graphs {
 
 template <std::size_t K>
-class LollipopGraph : public GraphBase<LollipopGraph<K>> {
+class LollipopGraph : public GraphBase<LollipopGraph<K>, K> {
     public:
-        using GraphBase::tf;
-        using GraphBase::counts;
+        using Base = GraphBase<LollipopGraph<K>, K>;
+        using Base::num_vertices;
 
-        LollipopGraph(size_t n_clique, size_t n_path)
-            : n_clique(n_clique), n_path(n_path) {}
+        LollipopGraph(size_t n_clique_, size_t n_path_)
+            : n_clique(n_clique_), bridge(n_clique_ ? n_clique_ - 1 : 0), bridge_color(0), n_path(n_path_),
+              clique(n_clique_ ? n_clique_ - 1 : 0), path(n_path_) {
+            num_vertices = n_clique + n_path;
+        }
     
         uint64_t local_frustration(size_t v) const {
             if(v < bridge) {
@@ -42,13 +45,12 @@ class LollipopGraph : public GraphBase<LollipopGraph<K>> {
             }
         }
         
-        void change_color(index_t v, uint32_t c, uint32_t c_original = get_color(v)) {
+        void change_color(index_t v, uint32_t c, uint32_t c_original = 0) {
+            if (c_original == 0) c_original = static_cast<uint32_t>(get_color(v));
             if(v < bridge) {
                 clique.change_color(v, c, c_original);
             } else if (v == bridge) {
-                tf -= bridge_frustration(); // remove old contribution
                 bridge_color = c;
-                tf += bridge_frustration(); // add new contribution
             } else {
                 path.change_color(v - n_clique, c, c_original);
             }
@@ -60,12 +62,12 @@ class LollipopGraph : public GraphBase<LollipopGraph<K>> {
         size_t bridge_color = 0;
         size_t n_path;
  
-        CliqueGraph<K> clique = CliqueGraph<K>(n_clique-1);        
-        PathGraph<K> path = PathGraph<K>(n_path);
+        CliqueGraph<K> clique;        
+        PathGraph<K> path;
 
         uint64_t bridge_frustration() const {
             if (bridge_color == 0) return 0;
-            uint64_t bf = clique.total_occupied() - clique.counts[bridge_color];
+            uint64_t bf = clique.total_occupied() - clique.color_count(static_cast<uint32_t>(bridge_color));
             bf += (path.get_color(0) != bridge_color)*(path.get_color(0) != 0);
             return bf;
         }
