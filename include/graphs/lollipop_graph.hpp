@@ -22,17 +22,31 @@ class LollipopGraph : public GraphBase<LollipopGraph<K>, K> {
         }
     
         uint64_t local_frustration(size_t v) const {
-            if(v < bridge) {
-                return clique.local_frustration(v);
+            if (v < bridge) {
+                // Clique vertex: its clique-internal disagreements + possible disagreement with bridge
+                uint64_t d = clique.local_frustration(v);
+                const std::uint32_t cv = static_cast<std::uint32_t>(clique.get_color(v));
+                d += (bridge_color != 0 && cv != 0 && cv != bridge_color);
+                return d;
             } else if (v == bridge) {
-                return bridge_frustration();
+                // Bridge vertex: disagreements to all clique vertices + to first path vertex
+                if (bridge_color == 0) return 0;
+                uint64_t d = clique.total_occupied() - clique.color_count(static_cast<uint32_t>(bridge_color));
+                if (n_path > 0) {
+                    const std::uint32_t c0 = path.get_color(0);
+                    d += (c0 != 0 && c0 != bridge_color);
+                }
+                return d;
             } else {
-                return path.local_frustration(v - n_clique);
+                // Path vertex: path-internal disagreements + possible disagreement with bridge (for the first path vertex)
+                const size_t idx = v - n_clique;
+                uint64_t d = path.local_frustration(idx);
+                if (idx == 0) {
+                    const std::uint32_t c0 = path.get_color(0);
+                    d += (bridge_color != 0 && c0 != 0 && c0 != bridge_color);
+                }
+                return d;
             }
-        }
-
-        uint64_t total_frustration() const {
-            return clique.total_frustration() + path.total_frustration() + bridge_frustration();
         }
 
         uint64_t get_color(index_t v) const {
@@ -54,6 +68,8 @@ class LollipopGraph : public GraphBase<LollipopGraph<K>, K> {
             } else {
                 path.change_color(v - n_clique, c, c_original);
             }
+            // Invalidate base memoized total
+            this->tf = static_cast<std::uint64_t>(-1);
         }
     
         private:

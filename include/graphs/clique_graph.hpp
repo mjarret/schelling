@@ -24,14 +24,6 @@ public:
     explicit CliqueGraph(index_t n, const std::array<uint64_t, K>& c) { num_vertices = n; counts = c; tf = static_cast<uint64_t>(-1); }
 
     uint64_t local_frustration(index_t v)   const { (void)v; return this->total_occupied() - counts[get_color(v)]; }
-    uint64_t total_frustration() const {
-        if (tf != static_cast<uint64_t>(-1)) return tf;
-        const std::uint64_t occ = this->total_occupied(); // (n - counts[0])
-        std::uint64_t sumsq = 0;
-        for (std::size_t k = 1; k < K; ++k) sumsq += counts[k] * counts[k];
-        tf = (occ * occ - sumsq) / 2ULL; // each edge counted twice
-        return tf;
-    }
 
     void set_colors(const std::array<uint64_t, K>& color_counts) { counts = color_counts; tf = static_cast<uint64_t>(-1); }
 
