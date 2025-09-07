@@ -5,7 +5,10 @@
 #include <chrono>
 
 #include "graphs/lollipop_graph.hpp"
-#include "experiment/simulator.hpp"
+#include "graphs/path_graph.hpp"
+#include "graphs/clique_graph.hpp"
+#include "sim/schelling_next.hpp"
+#include "core/rng.hpp"
 
 #ifndef K
 #define K 2
@@ -43,7 +46,40 @@ int main(int argc, char** argv) {
         else { std::cerr << "Unknown or incomplete option: " << arg << "\n"; print_help(argv[0]); return 2; }
     }
 
-    if (!seed_set) seed = static_cast<uint64_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-  
+    if (!seed_set) seed = static_cast<uint64_t>(
+        std::chrono::high_resolution_clock::now().time_since_epoch().count());
+
+    // Lollipop default split: half clique, half path
+    const std::size_t n_clique = n / 2;
+    const std::size_t n_path   = n - n_clique;
+    Graph g(n_clique, n_path);
+
+    // Initialize colors: 70% occupancy, colors 1..K uniform
+    core::Xoshiro256ss rng(seed);
+    for (std::size_t v = 0; v < g.size(); ++v) {
+        const bool occ = (rng.uniform01() < 0.70);
+        const std::uint32_t c = occ ? (1u + static_cast<std::uint32_t>(rng.uniform_u64(K) % K)) : 0u;
+        g.change_color(static_cast<index_t>(v), c);
+    }
+
+    std::uint64_t frustrated = g.total_frustration();
+    if (!quiet) {
+        std::cout << "seed=" << seed
+                  << " n=" << g.size()
+                  << " initial_frustration=" << frustrated
+                  << "\n";
+    }
+
+    for (std::uint64_t step = 1; step <= max_steps && frustrated != 0; ++step) {
+        const auto delta = sim::schelling_next(g, rng);
+        if (delta != 0) frustrated = g.total_frustration();
+        if (!quiet && (step % stats_every == 0)) {
+            std::cout << "step=" << step << " frustration=" << frustrated << "\n";
+        }
+    }
+
+    if (!quiet) {
+        std::cout << "final_frustration=" << g.total_frustration() << "\n";
+    }
     return 0;
 }
