@@ -14,6 +14,7 @@ class LollipopGraph : public GraphBase<LollipopGraph<K>, K> {
     public:
         using Base = GraphBase<LollipopGraph<K>, K>;
         using Base::num_vertices;
+        using Base::tf;
 
         LollipopGraph(size_t n_clique_, size_t n_path_)
             : n_clique(n_clique_), bridge(n_clique_ ? n_clique_ - 1 : 0), bridge_color(0), n_path(n_path_),
@@ -47,6 +48,12 @@ class LollipopGraph : public GraphBase<LollipopGraph<K>, K> {
                 }
                 return d;
             }
+        }
+
+        // Compute total frustration by summing subgraph totals and the bridge edges.
+        // No memoization at the lollipop level; subgraphs may memoize internally.
+        uint64_t total_frustration() const {
+            return clique.total_frustration() + path.total_frustration() + bridge_frustration();
         }
 
         uint64_t get_color(index_t v) const {
