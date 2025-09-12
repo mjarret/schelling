@@ -22,31 +22,28 @@ class LollipopGraph : public GraphBase<LollipopGraph<K>, K> {
             num_vertices = n_clique + n_path;
         }
     
+        // Local disagreements without scanning full adjacency.
+        // Layout:
+        //   core clique = [0 .. bridge-1], bridge = (n_clique-1), path = [n_clique .. n_clique+n_path-1]
+        // CliqueGraph<K> here models only the core (excludes the bridge), so we explicitly
+        // add bridge-related terms where appropriate.
         uint64_t local_frustration(size_t v) const {
             if (v < bridge) {
-                // Clique vertex: its clique-internal disagreements + possible disagreement with bridge
-                uint64_t d = clique.local_frustration(v);
+                // Core clique vertex: clique-internal + possible disagreement with bridge (0/1)
                 const std::uint32_t cv = static_cast<std::uint32_t>(clique.get_color(v));
-                d += (bridge_color != 0 && cv != 0 && cv != bridge_color);
-                return d;
+                return clique.local_frustration(v)
+                     + static_cast<std::uint64_t>((bridge_color != 0u) * (cv != 0u) * (cv != bridge_color));
             } else if (v == bridge) {
                 // Bridge vertex: disagreements to all clique vertices + to first path vertex
-                if (bridge_color == 0) return 0;
-                uint64_t d = clique.total_occupied() - clique.color_count(static_cast<uint32_t>(bridge_color));
-                if (n_path > 0) {
-                    const std::uint32_t c0 = path.get_color(0);
-                    d += (c0 != 0 && c0 != bridge_color);
-                }
-                return d;
+                const std::uint32_t p0 = path.get_color(0);
+                return clique.total_occupied()
+                     - static_cast<std::uint64_t>(clique.color_count(static_cast<std::uint32_t>(bridge_color)))
+                     + static_cast<std::uint64_t>((p0 != 0u) * (p0 != bridge_color));
             } else {
-                // Path vertex: path-internal disagreements + possible disagreement with bridge (for the first path vertex)
-                const size_t idx = v - n_clique;
-                uint64_t d = path.local_frustration(idx);
-                if (idx == 0) {
-                    const std::uint32_t c0 = path.get_color(0);
-                    d += (bridge_color != 0 && c0 != 0 && c0 != bridge_color);
-                }
-                return d;
+                // Path vertex: path-local + possible disagreement with bridge only at first path vertex
+                const std::uint32_t pc = path.get_color(v - n_clique);
+                return path.local_frustration(v - n_clique)
+                     + static_cast<std::uint64_t>((v == bridge + 1u) * (bridge_color != 0u) * (pc != 0u) * (pc != bridge_color));
             }
         }
 
@@ -54,6 +51,19 @@ class LollipopGraph : public GraphBase<LollipopGraph<K>, K> {
         // No memoization at the lollipop level; subgraphs may memoize internally.
         uint64_t total_frustration() const {
             return clique.total_frustration() + path.total_frustration() + bridge_frustration();
+        }
+
+        // Occupied neighbor count specialized for hot calls from the runner.
+        // NOTE: can be called on any v; for clique-core we subtract self occupancy explicitly.
+        // Keep this O(1) and branch-lean; do not replace with scans.
+        std::uint32_t occupied_neighbor_count(index_t v) const {
+            if (v < bridge) {
+                return clique.total_occupied() -(get_color(v) != 0) + (bridge_color != 0);
+            } else if (v == bridge) {
+                return clique.total_occupied() + (path.get_color(0) != 0);
+            } else {
+                return path.occupied_neighbor_count(v - n_clique) + (bridge_color != 0)*(v == bridge + 1);
+            }
         }
 
         uint64_t get_color(index_t v) const {
@@ -75,8 +85,6 @@ class LollipopGraph : public GraphBase<LollipopGraph<K>, K> {
             } else {
                 path.change_color(v - n_clique, c, c_original);
             }
-            // Invalidate base memoized total
-            this->tf = static_cast<std::uint64_t>(-1);
         }
     
         private:
@@ -88,6 +96,7 @@ class LollipopGraph : public GraphBase<LollipopGraph<K>, K> {
         CliqueGraph<K> clique;        
         PathGraph<K> path;
 
+        // Single bridge edge contribution used by total_frustration().
         uint64_t bridge_frustration() const {
             if (bridge_color == 0) return 0;
             uint64_t bf = clique.total_occupied() - clique.color_count(static_cast<uint32_t>(bridge_color));

@@ -9,10 +9,10 @@
 namespace graphs {
 
 template <std::size_t K>
-class PathGraph : public GraphBase<PathGraph<K>, K> {
+class PathGraph : public GraphBase<PathGraph<K>, K + 1> {
 public:
     static constexpr std::size_t Bits = core::BitsForK<K>::value;
-    using Base = GraphBase<PathGraph<K>, K>;
+    using Base = GraphBase<PathGraph<K>, K + 1>;
     using Base::num_vertices;
     using Base::counts;
     using Base::tf;
@@ -22,7 +22,7 @@ public:
         colors_.resize(n);
         counts.fill(0);
         counts[0] = n; // initially all unoccupied
-        tf = static_cast<std::uint64_t>(-1);
+        tf = 0; // no disagreeing edges initially
     }
 
     index_t size() const { return num_vertices; }
@@ -33,39 +33,43 @@ public:
         return colors_.get(v);
     }
 
-    void set_color(index_t v, std::uint32_t c) {
-        const std::uint32_t old = get_color(v);
-        if (c == old) return;
-        colors_.set(v, c);
-        if (old <= K) { if (counts[old] > 0) --counts[old]; }
-        if (c <= K) { ++counts[c]; }
-        tf = static_cast<std::uint64_t>(-1);
-    }
+    void set_color(index_t v, std::uint32_t c) { change_color(v, c, get_color(v)); }
 
-    // Number of disagreeing occupied neighbors for current color at v
+    // Number of disagreeing occupied neighbors for current color at v.
+    // Branch-choice rationale:
+    // - We deliberately use short-circuit (&&) instead of fully branchless
+    //   arithmetic because it benchmarks faster on our expected occupancy mix.
+    // - get_color(v-1)/get_color(v+1) are allowed to "wrap"; get_color returns 0
+    //   out of range, so we avoid explicit bounds branches.
     std::uint64_t local_frustration(index_t v) const {
         const std::uint32_t c = get_color(v);
-        if (c == 0) return 0;
-        std::uint64_t d = 0;
-        if (v > 0) {
-            const std::uint32_t nl = get_color(v - 1);
-            d += (nl != 0 && nl != c);
-        }
-        if (v + 1 < num_vertices) {
-            const std::uint32_t nr = get_color(v + 1);
-            d += (nr != 0 && nr != c);
-        }
-        return d;
+        return (c!=0) * ((get_color(v-1)!=0 && get_color(v-1)!=c) + (get_color(v+1)!=0 && get_color(v+1)!=c));
     }
 
+    // Number of occupied neighbors (ignores color equality).
+    // Uses the same "wrap to 0" bounds trick as local_frustration to avoid
+    // extra branches or guards in the hot path.
+    std::uint32_t occupied_neighbor_count(index_t v) const {
+        return (get_color(v - 1) != 0) + (get_color(v + 1) != 0);
+    }
+
+    // Maintain tf by removing/adding the local contribution. No scanning.
+    // Keep exactly this pattern; replacing it with invalidation+recompute
+    // regresses perf significantly in tight loops.
     void change_color(index_t v, std::uint32_t c, std::uint32_t c_original = 0) {
         if (c_original == 0) c_original = get_color(v);
         if (c == c_original) return;
+
+        // Original, fast local update: remove old local contribution, apply new one
+        tf -= local_frustration(v);
+        --counts[c_original];
+        ++counts[c];
         colors_.set(v, c);
-        if (c_original <= K) { if (counts[c_original] > 0) --counts[c_original]; }
-        if (c <= K) { ++counts[c]; }
-        tf = static_cast<std::uint64_t>(-1);
+        tf += local_frustration(v);
     }
+
+    // We keep tf hot via change_color. The base's total_frustration() should not
+    // be needed in steady state; it remains as a correctness fallback.
 
 private:
     core::BitPackedVector<Bits> colors_;
