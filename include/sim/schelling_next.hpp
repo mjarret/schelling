@@ -1,4 +1,3 @@
-// schelling_next.hpp
 #pragma once
 
 #include <cstdint>
@@ -7,27 +6,27 @@
 
 namespace sim {
 
-// One Schelling move: pick an unhappy occupied vertex and move it to a random empty slot.
-// Returns delta in total frustration (new - old). If no valid move found, returns 0.
 template <class Graph, class Rng>
+/**
+ * @brief Perform one Schelling move and return delta frustration.
+ * @tparam Graph Graph type exposing size(), total_frustration(), get_color(), change_color().
+ * @tparam Rng RNG type used by the proposer.
+ * @param g Graph to mutate.
+ * @param rng Random generator.
+ * @return Delta in total frustration (after - before).
+ */
 inline std::int64_t schelling_next(Graph& g, Rng& rng) {
     const std::size_t n = g.size();
     if (n <= 1) return 0;
 
     auto [from, to] = core::random_transition(g, rng);
-    if (from == to) return 0;
-
     const auto c_from = g.get_color(from);
-    if (c_from == 0) return 0; // nothing to move
-    if (g.local_frustration(from) == 0) return 0; // already happy
-    if (g.get_color(to) != 0) return 0; // not empty
 
     const std::uint64_t before = g.total_frustration();
-    // Move via two color changes (avoid graph structure changes)
-    g.change_color(from, 0u, static_cast<std::uint32_t>(c_from));
-    g.change_color(to, static_cast<std::uint32_t>(c_from), 0u);
+    g.change_color(from, 0u, c_from);
+    g.change_color(to, c_from, 0u);
     const std::uint64_t after = g.total_frustration();
     return static_cast<std::int64_t>(after) - static_cast<std::int64_t>(before);
 }
 
-} // namespace sim
+}

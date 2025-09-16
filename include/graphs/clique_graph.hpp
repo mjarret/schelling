@@ -1,119 +1,112 @@
 #pragma once
 
+#include <algorithm>   // std::min
 #include <cstdint>
-#include <array>
-#include <cassert>
+#include <optional>
+#include <random>      // std::uniform_int_distribution
+#include <span>
+#include <utility>     // std::pair
 
-#include "graphs/core/graph_base.hpp"
-#include <algorithm>
-#include <numeric>
+#include "core/schelling_threshold.hpp"
 
 namespace graphs {
 
-template <std::size_t K>
-class CliqueGraph : public GraphBase<CliqueGraph<K>, K + 1> {
+// Two-color clique (plus unoccupied), counts-first, with one boundary ghost.
+// Boundary (b_occ_, b_color_) behaves like a single external neighbor connected to every occupied clique vertex.
+class CliqueGraph {
 public:
-    using Base = GraphBase<CliqueGraph<K>, K + 1>;
-    using Base::num_vertices;
-    using Base::tf;
-    using Base::counts;
-    using Base::happiness_;
+    using count_t  = std::uint64_t;
+    using weights2 = std::pair<count_t, count_t>; // {w0, w1} = {color-0, color-1}
 
-    static_assert(K >= 1, "K must be at least 1");
+    explicit CliqueGraph(count_t n) noexcept
+        : n_(n), c0_(0), c1_(0), b_occ_(false), b_color_(false) {}
 
-    explicit CliqueGraph(index_t n) {
-        num_vertices = n; counts.fill(0);
-        counts[0] = n; // all unoccupied at start
-        tf = 0;        // no disagreeing edges
-    }
-    explicit CliqueGraph(index_t n, const std::array<uint64_t, K + 1>& c) {
-        num_vertices = n; counts = c;
-        recompute_tf_from_counts_();
-    }
-
-    // Clique local disagreement count for vertex v:
-    //   deg_disagree(v) = total_occupied() - counts[color(v)]
-    // Fast path relies on counts and never scans neighbors.
-    uint64_t local_frustration(index_t v)   const { (void)v; return this->total_occupied() - counts[get_color(v)]; }
-    std::uint32_t occupied_neighbor_count(index_t v) const {
-        (voccoid)v;
-        const std::uint32_t self_occ = static_cast<std::uint32_t>(get_color(v) != 0);
-        const std::uint32_t occ = static_cast<std::uint32_t>(this->total_occupied());
-        return occ - self_occ;
-    }
-
-    // Use GraphBase::total_frustration(), which returns cached tf. We keep tf hot via change_color.
-
-    void set_colors(const std::array<uint64_t, K + 1>& color_counts) { counts = color_counts; recompute_tf_from_counts_(); }
-
-    /**
-     * @brief Returns the color index associated with a given vertex index.
-     *
-     * This function maps a vertex index `v` to its corresponding color by using a prefix sum
-     * of the `counts` array, where `counts[0]` represents unoccupied vertices and subsequent
-     * elements represent the number of vertices for each color. The prefix sum array is used
-     * to determine the color boundaries, and `std::upper_bound` is used to find the color
-     * whose range contains the given vertex index.
-     *
-     * @param v The vertex index to map to a color.
-     * @return index_t The color index corresponding to the vertex.
-     */
-    index_t get_color(index_t v) const {
-        // Map index to color by counts prefix; counts[0] is unoccupied
-        std::array<uint64_t, K + 1> prefix{};
-        std::partial_sum(counts.begin(), counts.end(), prefix.begin());
-        auto it = std::upper_bound(prefix.begin(), prefix.end(), static_cast<uint64_t>(v));
-        return static_cast<index_t>(std::distance(prefix.begin(), it));
-    }
-
-    template <typename Func>
-    auto sum_over_neighbors(index_t v, Func&& func) const {
-        const auto& self = static_cast<const Derived&>(*this);
-        auto sum = decldtype(func(v, index_t{})){};
-        for (auto c = 1; c <= K; ++c) {
-            sum += counts[get_color(v)]*func(v);
+    // From occupancy+color spans (true => occupied; color==true => color 1).
+    explicit CliqueGraph(std::span<const bool> occ,
+                         std::span<const bool> color) noexcept
+        : n_(occ.size()), c0_(0), c1_(0), b_occ_(false), b_color_(false)
+    {
+        const std::size_t m = std::min<std::size_t>(occ.size(), color.size());
+        for (std::size_t i = 0; i < m; ++i) {
+            if (occ[i]) { if (color[i]) ++c1_; else ++c0_; }
         }
-        return sum;
-    }        
-
-    // O(1) tf maintenance — do not replace with recompute.
-    // Handles all three cases using pre-change counts:
-    //   a->b (a>0,b>0): tf += counts[a] - counts[b] - 1
-    //   a->0:          tf += counts[a] - total_occupied()
-    //   0->b:          tf += total_occupied() - counts[b]
-    // Counts are updated after delta; no runtime guards.
-    void change_color(index_t v, uint32_t c, uint32_t c_original) {
-        (void)v; // storage-less model via counts
-        if (c == c_original) return;
-        if (c == 0) {
-            tf -= this->total_occupied() - counts[c_original];
-            --counts[c_original];
-            ++counts[0];
-            return;
-        }
-        if (c_original == 0) {
-            tf += this->total_occupied() - counts[c];
-            ++counts[c];
-            --counts[0];
-            return;
-        }
-        // Original fast rule (nonzero->nonzero expected usage)
-        tf += counts[c_original] - counts[c] - 1;
-        --counts[c_original];
-        ++counts[c];
     }
 
-    void change_color(index_t v, uint32_t c) { change_color(v, c, static_cast<uint32_t>(get_color(v))); }
+    // --- Boundary (ghost) ---
+    void set_right_boundary(bool occ, bool color) noexcept {
+        b_occ_ = occ; b_color_ = color;
+    }
+    bool boundary_occupied() const noexcept { return b_occ_; }
+    bool boundary_color()     const noexcept { return b_color_; }
 
-    std::uint64_t color_count(std::uint32_t c) const { return counts[c]; }
+    // --- Sizes / counts ---
+    count_t size()             const noexcept { return n_; }
+    count_t occupied_count()   const noexcept { return c0_ + c1_; }
+    count_t unoccupied_count() const noexcept { return n_ - (c0_ + c1_); }
+
+    // --- Conceptual color by index (keeps index API; still fully symmetric) ---
+    // [0 .. c0_-1] => color 0, [c0_ .. c0_+c1_-1] => color 1, else unoccupied.
+    std::optional<bool> get_color(count_t v) const noexcept {
+        if (v < c0_)               return false;
+        else if (v < c0_ + c1_)    return true;
+        else                       return std::nullopt;
+    }
+
+    // --- Unhappy counts (O(1), from counts + boundary) ---
+    count_t unhappy_agent_count() const {
+        const auto w = unhappy_weights();                 // per-color unhappy counts
+        return w.first + w.second;
+    }
+
+    // Per-color unhappy counts as a pair {u0, u1}.
+    weights2 unhappy_weights() const {
+        const count_t occ = c0_ + c1_;
+        if (occ == 0) return {0, 0};
+
+        const count_t deg   = (occ - 1) + (b_occ_ ? 1 : 0);
+        const count_t u0_in = c1_ + ((b_occ_ &&  b_color_) ? 1 : 0); // unlike neighbors for color-0 agent
+        const count_t u1_in = c0_ + ((b_occ_ && !b_color_) ? 1 : 0); // unlike neighbors for color-1 agent
+
+        const bool u0 = core::schelling::is_unhappy(u0_in, deg);
+        const bool u1 = core::schelling::is_unhappy(u1_in, deg);
+        return { u0 ? c0_ : 0, u1 ? c1_ : 0 };
+    }
+
+    // --- Sampling ------------------------------------------------------
+    // Unoccupied vertices are symmetric—return the first empty conceptual slot if any.
+    std::optional<count_t> get_random_unoccupied() const noexcept {
+        const count_t u = unoccupied_count();
+        return u ? std::optional<count_t>(c0_ + c1_) : std::nullopt;
+    }
+
+    // Uniform over all unhappy clique vertices.
+    // Returns a conceptual index inside the clique:
+    //   - if color-0 chosen → return 0
+    //   - if color-1 chosen → return c0_  (start of color-1 block)
+    template<class URBG>
+    std::optional<count_t> get_random_unhappy(URBG& rng) const {
+        const auto w = unhappy_weights();             // {w0, w1}
+        const count_t sum = w.first + w.second;
+        if (sum == 0) return std::nullopt;
+
+        // Weighted choice without containers: draw r ∈ [0, sum-1], pick 0 if r < w0 else 1.
+        std::uniform_int_distribution<count_t> pick(0, sum - 1);  // inclusive range [a,b] per standard
+        const count_t r = pick(rng);                               // [0, sum-1]
+        return (r >= w.first) ? w.first : 0;
+    }
+
+    // --- Recolor one conceptual occupied vertex; no-ops for unoccupied / same color ---
+    void set_color(count_t v, bool c) {
+        const auto prev = get_color(v);
+        if (!prev.has_value() || *prev == c) return;
+        if (*prev == false) { --c0_; ++c1_; } else { --c1_; ++c0_; }
+    }
+
 private:
-    void recompute_tf_from_counts_() {
-        const std::uint64_t occ = this->total_occupied();
-        std::uint64_t sumsq = 0;
-        for (std::size_t k = 1; k <= K; ++k) sumsq += counts[k] * counts[k];
-        tf = (occ * occ - sumsq) / 2ULL;
-    }
-   
+    count_t n_{0};   // capacity (occupied + unoccupied)
+    count_t c0_{0};  // count of color 0
+    count_t c1_{0};  // count of color 1
+    bool    b_occ_{false};    // boundary (ghost) occupancy
+    bool    b_color_{false};  // boundary (ghost) color
 };
-
 } // namespace graphs

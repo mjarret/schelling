@@ -1,78 +1,166 @@
+// path_graph.hpp
 #pragma once
-
+#include <bit>            // std::popcount
 #include <cstdint>
-#include <array>
+#include <optional>
+#include <random>
+#include <vector>
+#include "path_graph_64.hpp"
+#include "core/bitops.hpp" // core::random_setbit_index_u64(mask, rng)
 
-#include "core/bitpack.hpp"
-#include "graphs/core/graph_base.hpp"
-
-namespace graphs {
-
-template <std::size_t K>
-class PathGraph : public GraphBase<PathGraph<K>, K + 1> {
+class PathGraph {
 public:
-    static constexpr std::size_t Bits = core::BitsForK<K>::value;
-    using Base = GraphBase<PathGraph<K>, K + 1>;
-    using Base::num_vertices;
-    using Base::counts;
-    using Base::tf;
+    using gindex_t = std::uint64_t;  // global vertex index
+    using lindex_t = std::uint8_t;   // local interior index ∈ [1..len]
 
-    explicit PathGraph(index_t n) {
-        num_vertices = n;
-        colors_.resize(n);
-        counts.fill(0);
-        counts[0] = n; // initially all unoccupied
-        tf = 0; // no disagreeing edges initially
+    explicit PathGraph(std::uint64_t n)
+      : n_(n), blocks_(num_blocks_for_(n)) {
+        for (std::size_t b = 0; b < blocks_.size(); ++b)
+            blocks_[b] = PathGraph_64(block_len_(b));
+        sync_all_boundaries_();
     }
 
-    index_t size() const { return num_vertices; }
-    bool is_occupied(index_t v) const { return get_color(v) != 0; }
+    std::uint64_t size()       const noexcept { return n_; }
+    std::size_t   num_blocks() const noexcept { return blocks_.size(); }
 
-    std::uint32_t get_color(index_t v) const {
-        if (v >= num_vertices) return 0;
-        return colors_.get(v);
+    // Global index → (block, local interior index)
+    static std::size_t block_of(gindex_t v)  noexcept { return static_cast<std::size_t>(v / PathGraph_64::kMaxInterior); }
+    static lindex_t    offset_of(gindex_t v) noexcept { return static_cast<lindex_t>(v % PathGraph_64::kMaxInterior + 1); }
+    static gindex_t    base_of(std::size_t b) noexcept { return static_cast<gindex_t>(b) * PathGraph_64::kMaxInterior; }
+
+    // -------------------- Setters / Getters ----------------------------
+    inline void set_occupied(gindex_t v) {
+        if (v >= n_) return;
+        const std::size_t b = block_of(v);
+        const lindex_t    o = offset_of(v);
+        blocks_[b].set_occupied(o);
+        sync_boundaries_after_local_change_(b, o);
+    }
+    inline void clear_occupied(gindex_t v) {
+        if (v >= n_) return;
+        const std::size_t b = block_of(v);
+        const lindex_t    o = offset_of(v);
+        blocks_[b].clear_occupied(o);
+        sync_boundaries_after_local_change_(b, o);
+    }
+    inline void set_color(gindex_t v, bool c) {
+        if (v >= n_) return;
+        const std::size_t b = block_of(v);
+        const lindex_t    o = offset_of(v);
+        blocks_[b].set_color(o, c);
+        sync_boundaries_after_local_change_(b, o);
+    }
+    inline std::optional<bool> get_color(gindex_t v) const {
+        if (v >= n_) return std::nullopt;
+        return blocks_[block_of(v)].get_color(offset_of(v));
     }
 
-    void set_color(index_t v, std::uint32_t c) { change_color(v, c, get_color(v)); }
-
-    // Number of disagreeing occupied neighbors for current color at v.
-    // Branch-choice rationale:
-    // - We deliberately use short-circuit (&&) instead of fully branchless
-    //   arithmetic because it benchmarks faster on our expected occupancy mix.
-    // - get_color(v-1)/get_color(v+1) are allowed to "wrap"; get_color returns 0
-    //   out of range, so we avoid explicit bounds branches.
-    std::uint64_t local_frustration(index_t v) const {
-        const std::uint32_t c = get_color(v);
-        return (c!=0) * ((get_color(v-1)!=0 && get_color(v-1)!=c) + (get_color(v+1)!=0 && get_color(v+1)!=c));
+    // Unhappy? — ask the block; ghosts encode neighbors already
+    inline bool is_unhappy(gindex_t v) const {
+        if (v >= n_) return false;
+        return blocks_[block_of(v)].is_unhappy(offset_of(v));
     }
 
-    // Number of occupied neighbors (ignores color equality).
-    // Uses the same "wrap to 0" bounds trick as local_frustration to avoid
-    // extra branches or guards in the hot path.
-    std::uint32_t occupied_neighbor_count(index_t v) const {
-        return (get_color(v - 1) != 0) + (get_color(v + 1) != 0);
+    // Fast unhappy count: sum per-block counts; no boundary fixups needed
+    inline std::uint64_t unhappy_count() const {
+        std::uint64_t total = 0;
+        for (const auto& blk : blocks_) total += blk.unhappy_agent_count();
+        return total;
     }
 
-    // Maintain tf by removing/adding the local contribution. No scanning.
-    // Keep exactly this pattern; replacing it with invalidation+recompute
-    // regresses perf significantly in tight loops.
-    void change_color(index_t v, std::uint32_t c, std::uint32_t c_original = 0) {
-        if (c_original == 0) c_original = get_color(v);
-        if (c == c_original) return;
-
-        // Original, fast local update: remove old local contribution, apply new one
-        tf -= local_frustration(v);
-        --counts[c_original];
-        ++counts[c];
-        colors_.set(v, c);
-        tf += local_frustration(v);
+    // -------------------- Sampling via per-block weights ----------------
+    template<class Rng>
+    inline std::optional<gindex_t> get_random_unoccupied(Rng& rng) const {
+        const auto b = choose_block_by_weights_(rng, [](const PathGraph_64& blk){
+            return static_cast<double>(blk.unoccupied_count());
+        });
+        if (!b) return std::nullopt;
+        auto li = blocks_[*b].get_random_unoccupied(rng);
+        return li ? std::optional<gindex_t>(base_of(*b) + static_cast<gindex_t>(*li - 1)) : std::nullopt;
     }
 
-    // We keep tf hot via change_color. The base's total_frustration() should not
-    // be needed in steady state; it remains as a correctness fallback.
+    template<class Rng>
+    inline std::optional<gindex_t> get_random_unhappy(Rng& rng) const {
+        const auto b = choose_block_by_weights_(rng, [](const PathGraph_64& blk){
+            return static_cast<double>(blk.unhappy_agent_count());
+        });
+        if (!b) return std::nullopt;
+        auto li = blocks_[*b].get_random_unhappy(rng);
+        return li ? std::optional<gindex_t>(base_of(*b) + static_cast<gindex_t>(*li - 1)) : std::nullopt;
+    }
+
+    // Optional block access
+    PathGraph_64&       block(std::size_t i)       { return blocks_[i]; }
+    const PathGraph_64& block(std::size_t i) const { return blocks_[i]; }
 
 private:
-    core::BitPackedVector<Bits> colors_;
-};
+    std::uint64_t             n_;
+    std::vector<PathGraph_64> blocks_;
 
-} // namespace graphs
+    // Block partitioning (62 interior per block)
+    static std::size_t num_blocks_for_(std::uint64_t n) {
+        return static_cast<std::size_t>((n + PathGraph_64::kMaxInterior - 1) / PathGraph_64::kMaxInterior);
+    }
+    inline PathGraph_64::index_t block_len_(std::size_t b) const {
+        const std::uint64_t start = base_of(b);
+        if (start >= n_) return 0;
+        const std::uint64_t rem = n_ - start;
+        return static_cast<PathGraph_64::index_t>(rem >= PathGraph_64::kMaxInterior ? PathGraph_64::kMaxInterior : rem);
+    }
+
+    // Keep ghost boundaries consistent (construction + after updates)
+    inline void sync_all_boundaries_() {
+        const std::size_t B = blocks_.size();
+        for (std::size_t b = 0; b < B; ++b) {
+            // left ghost of b mirrors last interior of b-1
+            if (b == 0 || blocks_[b-1].length() == 0) {
+                blocks_[b].set_left_boundary(false, false);
+            } else {
+                const auto lp  = blocks_[b-1].length();
+                const bool occ = ((blocks_[b-1].occupancy_mask() >> lp) & 1ull) != 0;
+                const bool col = ((blocks_[b-1].color_mask()     >> lp) & 1ull) != 0;
+                blocks_[b].set_left_boundary(occ, col);
+            }
+            // right ghost of b mirrors first interior of b+1
+            if (b + 1 >= B || blocks_[b+1].length() == 0) {
+                blocks_[b].set_right_boundary(false, false);
+            } else {
+                const bool occ = ((blocks_[b+1].occupancy_mask() >> 1) & 1ull) != 0;
+                const bool col = ((blocks_[b+1].color_mask()     >> 1) & 1ull) != 0;
+                blocks_[b].set_right_boundary(occ, col);
+            }
+        }
+    }
+
+    inline void sync_boundaries_after_local_change_(std::size_t b, lindex_t o) {
+        // If first interior changed (o==1), update RIGHT ghost of previous block
+        if (o == 1 && b > 0) {
+            const bool occ = ((blocks_[b].occupancy_mask() >> 1) & 1ull) != 0;
+            const bool col = ((blocks_[b].color_mask()     >> 1) & 1ull) != 0;
+            blocks_[b-1].set_right_boundary(occ, col);
+        }
+        // If last interior changed (o==len), update LEFT ghost of next block
+        const auto len = blocks_[b].length();
+        if (o == len && (b + 1) < blocks_.size()) {
+            const bool occ = ((blocks_[b].occupancy_mask() >> len) & 1ull) != 0;
+            const bool col = ((blocks_[b].color_mask()     >> len) & 1ull) != 0;
+            blocks_[b+1].set_left_boundary(occ, col);
+        }
+    }
+
+    template<class Rng, class WeightFn>
+    inline std::optional<std::size_t> choose_block_by_weights_(Rng& rng, WeightFn wfn) const {
+        const std::size_t B = blocks_.size();
+        std::vector<double> w; w.reserve(B);
+        double sum = 0.0;
+        for (std::size_t b = 0; b < B; ++b) {
+            const double wb = wfn(blocks_[b]);
+            w.push_back(wb);
+            sum += wb;
+        }
+        if (sum == 0.0) return std::nullopt; // no eligible vertices
+
+        std::discrete_distribution<std::size_t> dist(w.begin(), w.end()); // [0,B), prob ∝ w_i
+        return std::optional<std::size_t>(dist(rng));
+    }
+};
