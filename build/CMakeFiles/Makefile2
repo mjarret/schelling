@@ -63,11 +63,11 @@ CMAKE_BINARY_DIR = /home/michael/Dropbox/Workspace/Schelling/build
 # Directory level rules for the build root directory
 
 # The main recursive "all" target.
-all:
+all: CMakeFiles/schelling.dir/all
 .PHONY : all
 
 # The main recursive "codegen" target.
-codegen:
+codegen: CMakeFiles/schelling.dir/codegen
 .PHONY : codegen
 
 # The main recursive "preinstall" target.
@@ -75,8 +75,40 @@ preinstall:
 .PHONY : preinstall
 
 # The main recursive "clean" target.
-clean:
+clean: CMakeFiles/schelling.dir/clean
 .PHONY : clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/schelling.dir
+
+# All Build rule for target.
+CMakeFiles/schelling.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/schelling.dir/build.make CMakeFiles/schelling.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/schelling.dir/build.make CMakeFiles/schelling.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/michael/Dropbox/Workspace/Schelling/build/CMakeFiles --progress-num=1,2 "Built target schelling"
+.PHONY : CMakeFiles/schelling.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/schelling.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/michael/Dropbox/Workspace/Schelling/build/CMakeFiles 2
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/schelling.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/michael/Dropbox/Workspace/Schelling/build/CMakeFiles 0
+.PHONY : CMakeFiles/schelling.dir/rule
+
+# Convenience name for target.
+schelling: CMakeFiles/schelling.dir/rule
+.PHONY : schelling
+
+# codegen rule for target.
+CMakeFiles/schelling.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/schelling.dir/build.make CMakeFiles/schelling.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/michael/Dropbox/Workspace/Schelling/build/CMakeFiles --progress-num=1,2 "Finished codegen for target schelling"
+.PHONY : CMakeFiles/schelling.dir/codegen
+
+# clean rule for target.
+CMakeFiles/schelling.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/schelling.dir/build.make CMakeFiles/schelling.dir/clean
+.PHONY : CMakeFiles/schelling.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

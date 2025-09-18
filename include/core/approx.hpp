@@ -7,10 +7,15 @@
 namespace core {
 namespace approx {
 
-// Minimal rational type: p/q with q>0. Types match color_count_t to align with counts.
+/**
+ * @brief Minimal rational type p/q with q>0.
+ * @note Types match color_count_t to align with count arithmetic.
+ */
 struct Rat { color_count_t p; color_count_t q; };
 
-// Bracketing rationals such that lo <= tau <= hi, with q <= max_q.
+/**
+ * @brief Bracketing rationals such that lo <= tau <= hi, with q <= max_q.
+ */
 struct RatBounds { Rat lo; Rat hi; };
 
 /**
@@ -25,8 +30,8 @@ struct RatBounds { Rat lo; Rat hi; };
  */
 static inline RatBounds farey_neighbors(double tau, color_count_t max_q) noexcept {
     // Clamp endpoints: if tau at boundaries, both bounds equal the boundary.
-    if (tau <= 0.0) return RatBounds{Rat{0,1}, Rat{0,1}};
-    if (tau >= 1.0) return RatBounds{Rat{1,1}, Rat{1,1}};
+    if (tau <= 0.0) return RatBounds{Rat{0,1}, Rat{0,1}}; // fast path
+    if (tau >= 1.0) return RatBounds{Rat{1,1}, Rat{1,1}}; // fast path
     // Invariant window [a/b, c/d] contains tau, start with [0/1, 1/1].
     color_count_t a = 0, b = 1;
     color_count_t c = 1, d = 1;
@@ -36,7 +41,7 @@ static inline RatBounds farey_neighbors(double tau, color_count_t max_q) noexcep
         const color_count_t num = a + c;     // mediant numerator
         const color_count_t den = b + d;     // mediant denominator
         if (den > max_q) break;              // next mediant exceeds cap
-        const double m = static_cast<double>(num) / static_cast<double>(den);
+        const double m = static_cast<double>(num) / static_cast<double>(den); // compare in FP only
         if (x > m) { a = num; b = den; }     // move lower bound up
         else if (x < m) { c = num; d = den; }// move upper bound down
         else { return {{num, den}, {num, den}}; } // exact hit
@@ -55,7 +60,7 @@ static inline Rat best_with_max_den(double tau, color_count_t max_q) noexcept {
     const long double x = static_cast<long double>(tau);
     const long double dlo = x - static_cast<long double>(b.lo.p) / static_cast<long double>(b.lo.q);
     const long double dhi = static_cast<long double>(b.hi.p) / static_cast<long double>(b.hi.q) - x;
-    return (dhi < dlo) ? b.hi : b.lo;
+    return (dhi < dlo) ? b.hi : b.lo; // choose closer side (tie → lo)
 }
 
 /**

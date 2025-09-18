@@ -1,17 +1,23 @@
 // schelling_sim.hpp
 #pragma once
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <random>
-#include <limits>
-#include "../graphs/lollipop_graph.hpp"   
+#include <stdexcept>
+
+#include "../core/debug.hpp"
+#include "../graphs/lollipop_graph.hpp"
 
 namespace sim {
 
 // --- Helpers ---------------------------------------------------------------
 
-// Keep the clique/path shared boundary equal to path vertex #0.
+/**
+ * @brief Keep clique↔path shared boundary equal to path vertex #0.
+ */
 inline void resync_boundary_from_path0(::graphs::LollipopGraph& G) {
+    SCHELLING_DEBUG_ASSERT(G.size() == G.clique_size() + G.path_size());
     if (G.path_size() == 0) {
         G.set_shared_boundary(false, false);
         return;
@@ -20,26 +26,37 @@ inline void resync_boundary_from_path0(::graphs::LollipopGraph& G) {
     G.set_shared_boundary(p0.has_value(), p0.value_or(false));
 }
 
-// Place `color` at global vertex `v` (v in [0..size)).
+/**
+ * @brief Place color at global vertex v (0..size).
+ */
 inline void emplace_at(::graphs::LollipopGraph& G, std::uint64_t v, bool color) {
+    SCHELLING_DEBUG_ASSERT(v < G.size());
     if (v < G.clique_size()) {
         // Clique: add one of this color (counts-first).
-        (void)G.clique().try_add(color);
+        const bool ok = G.clique().try_add(color);
+        SCHELLING_DEBUG_ASSERT(ok);
     } else {
         // Path: set occupied + color at local index
         const std::uint64_t pv = v - G.clique_size();
+        SCHELLING_DEBUG_ASSERT(pv < G.path_size());
+        SCHELLING_DEBUG_ASSERT(!G.get_color(v).has_value());
         G.path_set_occupied(pv);
         G.path_set_color(pv, color);
         if (pv == 0) resync_boundary_from_path0(G);
     }
 }
 
-// Remove the agent currently at global vertex `v` (must be occupied).
+/**
+ * @brief Remove agent currently at global vertex v (must be occupied).
+ */
 inline void erase_at(::graphs::LollipopGraph& G, std::uint64_t v, bool color) {
+    SCHELLING_DEBUG_ASSERT(v < G.size());
     if (v < G.clique_size()) {
-        (void)G.clique().try_remove(color);
+        const bool ok = G.clique().try_remove(color);
+        SCHELLING_DEBUG_ASSERT(ok);
     } else {
         const std::uint64_t pv = v - G.clique_size();
+        SCHELLING_DEBUG_ASSERT(pv < G.path_size());
         G.path_clear_occupied(pv);
         if (pv == 0) resync_boundary_from_path0(G);
     }
@@ -52,12 +69,17 @@ inline void erase_at(::graphs::LollipopGraph& G, std::uint64_t v, bool color) {
 // Precondition: n0 + n1 <= G.size() and (ideally) n0 + n1 < G.size()
 //               so that the dynamics (which require a vacancy) can run.
 //
+/**
+ * @brief Randomly populate with exactly n0 zeros and n1 ones (uniform over empties).
+ * @tparam URBG RNG type.
+ */
 template <class URBG>
 inline void populate_random(::graphs::LollipopGraph& G,
                             std::uint64_t n0, std::uint64_t n1,
                             URBG& rng)
 {
     const std::uint64_t N = G.size();
+    SCHELLING_DEBUG_ASSERT(n0 + n1 <= N);
     if (n0 + n1 > N) throw std::invalid_argument("n0+n1 exceeds capacity");
 
     // Clear boundary to path[0] state before we begin
@@ -66,6 +88,7 @@ inline void populate_random(::graphs::LollipopGraph& G,
     auto place_color = [&](bool color, std::uint64_t count) {
         for (std::uint64_t i = 0; i < count; ++i) {
             auto where = G.get_random_unoccupied(rng);   // uniform over all empties
+            SCHELLING_DEBUG_ASSERT(where.has_value());
             if (!where) throw std::runtime_error("No unoccupied slot available during initialization");
             emplace_at(G, *where, color);
         }
@@ -84,6 +107,10 @@ inline void populate_random(::graphs::LollipopGraph& G,
 //   3) move color(to) to `from` (vacate `to`).
 //
 // Note: This is the “move to vacancy” variant (not exchange). See references. :contentReference[oaicite:2]{index=2}
+/**
+ * @brief Run vacancy-moving Schelling until stable or step cap.
+ * @return Number of relocations performed.
+ */
 template <class URBG>
 inline std::uint64_t run_until_stable(::graphs::LollipopGraph& G,
                                       URBG& rng,
@@ -106,10 +133,7 @@ inline std::uint64_t run_until_stable(::graphs::LollipopGraph& G,
 
         // Read color before erasing
         const auto c = G.get_color(*to);
-        if (!c) {
-            // Defensive: should not happen since `to` is drawn from occupied-unhappy set.
-            continue;
-        }
+        SCHELLING_DEBUG_ASSERT(c.has_value());
 
         // Move
         erase_at(G, *to,  *c);

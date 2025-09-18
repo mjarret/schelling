@@ -1,166 +1,125 @@
-// path_graph.hpp
+// path_graph_64.hpp
 #pragma once
-#include <bit>            // std::popcount
+#include <bit>        // std::popcount, std::countr_zero (C++20)
 #include <cstdint>
 #include <optional>
 #include <random>
-#include <vector>
-#include "path_graph_64.hpp"
-#include "core/bitops.hpp" // core::random_setbit_index_u64(mask, rng)
 
+#include "plf_bitset.h"
+#include "core/bitops.hpp"  // core::random_setbit_index_u64(mask, rng): returns bit position (0..63)
+#include "core/debug.hpp"
+#include "core/schelling_threshold.hpp" // core::schelling::is_unhappy(lf, neigh)
+
+/**
+ * @brief 64-bit block of a path with two ghost endpoints.
+ * @details Bits: 0=left ghost, 1..len_=interior, 63=right ghost.
+ */
+template<std::size_t B = 64>
 class PathGraph {
 public:
-    using gindex_t = std::uint64_t;  // global vertex index
-    using lindex_t = std::uint8_t;   // local interior index ∈ [1..len]
+    using index_t = std::uint8_t;          // local interior index ∈ [1..len_]
 
-    explicit PathGraph(std::uint64_t n)
-      : n_(n), blocks_(num_blocks_for_(n)) {
-        for (std::size_t b = 0; b < blocks_.size(); ++b)
-            blocks_[b] = PathGraph_64(block_len_(b));
-        sync_all_boundaries_();
+    // Construct an empty block with given interior length in [0..62].
+    /**
+     * @brief Construct empty block with interior length in [0..62].
+     */
+    explicit PathGraph() : occ_(0), col_(0), mask_interior_(make_interior_mask_(B)) = default;
+    PathGraph(std::Bitset<B> occ, std::bitset<B> col) : occ_(occ), col_(col), mask_interior_(make_interior_mask_(B)) = default;
+
+    // -------------------- Boundary (ghost) controls --------------------
+    // bit 0 = left ghost, bit 63 = right ghost
+    inline void set_left_boundary(std::pair<bool,bool> p)  { occ_[0] = p.first; col_[0] = p.second; }  // ghost write
+    inline void set_right_boundary(std::pair<bool,bool> p) { occ_[B-1] = p.first; col_[B-1] = p.second; } // ghost write
+    
+    // -------------------- Counts (interior only) ----------------------
+    [[nodiscard]] inline index_t unoccupied_count() const {
+        return static_cast<index_t>(std::popcount((~occ_) & mask_interior_));  // C++20 <bit>
     }
 
-    std::uint64_t size()       const noexcept { return n_; }
-    std::size_t   num_blocks() const noexcept { return blocks_.size(); }
-
-    // Global index → (block, local interior index)
-    static std::size_t block_of(gindex_t v)  noexcept { return static_cast<std::size_t>(v / PathGraph_64::kMaxInterior); }
-    static lindex_t    offset_of(gindex_t v) noexcept { return static_cast<lindex_t>(v % PathGraph_64::kMaxInterior + 1); }
-    static gindex_t    base_of(std::size_t b) noexcept { return static_cast<gindex_t>(b) * PathGraph_64::kMaxInterior; }
-
-    // -------------------- Setters / Getters ----------------------------
-    inline void set_occupied(gindex_t v) {
-        if (v >= n_) return;
-        const std::size_t b = block_of(v);
-        const lindex_t    o = offset_of(v);
-        blocks_[b].set_occupied(o);
-        sync_boundaries_after_local_change_(b, o);
-    }
-    inline void clear_occupied(gindex_t v) {
-        if (v >= n_) return;
-        const std::size_t b = block_of(v);
-        const lindex_t    o = offset_of(v);
-        blocks_[b].clear_occupied(o);
-        sync_boundaries_after_local_change_(b, o);
-    }
-    inline void set_color(gindex_t v, bool c) {
-        if (v >= n_) return;
-        const std::size_t b = block_of(v);
-        const lindex_t    o = offset_of(v);
-        blocks_[b].set_color(o, c);
-        sync_boundaries_after_local_change_(b, o);
-    }
-    inline std::optional<bool> get_color(gindex_t v) const {
-        if (v >= n_) return std::nullopt;
-        return blocks_[block_of(v)].get_color(offset_of(v));
+    [[nodiscard]] inline index_t unhappy_agent_count() const {
+        return static_cast<index_t>(std::popcount(unhappy_mask_() & mask_interior_));
     }
 
-    // Unhappy? — ask the block; ghosts encode neighbors already
-    inline bool is_unhappy(gindex_t v) const {
-        if (v >= n_) return false;
-        return blocks_[block_of(v)].is_unhappy(offset_of(v));
-    }
-
-    // Fast unhappy count: sum per-block counts; no boundary fixups needed
-    inline std::uint64_t unhappy_count() const {
-        std::uint64_t total = 0;
-        for (const auto& blk : blocks_) total += blk.unhappy_agent_count();
-        return total;
-    }
-
-    // -------------------- Sampling via per-block weights ----------------
+    // -------------------- Random picks over interior -------------------
     template<class Rng>
-    inline std::optional<gindex_t> get_random_unoccupied(Rng& rng) const {
-        const auto b = choose_block_by_weights_(rng, [](const PathGraph_64& blk){
-            return static_cast<double>(blk.unoccupied_count());
-        });
-        if (!b) return std::nullopt;
-        auto li = blocks_[*b].get_random_unoccupied(rng);
-        return li ? std::optional<gindex_t>(base_of(*b) + static_cast<gindex_t>(*li - 1)) : std::nullopt;
+    [[nodiscard]] inline std::optional<index_t> get_random_unoccupied(Rng& rng) const {
+        const std::uint64_t mask = (~occ_) & mask_interior_;    // interior empties
+        if (mask == 0) return std::nullopt;
+
+        auto bitpos = core::random_setbit_index_u64(mask, rng); // returns 0..63 (bit position)
+        if (!bitpos) return std::nullopt;
+        return static_cast<index_t>(*bitpos - first_index); // adjust for ghost at 0
     }
 
     template<class Rng>
-    inline std::optional<gindex_t> get_random_unhappy(Rng& rng) const {
-        const auto b = choose_block_by_weights_(rng, [](const PathGraph_64& blk){
-            return static_cast<double>(blk.unhappy_agent_count());
-        });
-        if (!b) return std::nullopt;
-        auto li = blocks_[*b].get_random_unhappy(rng);
-        return li ? std::optional<gindex_t>(base_of(*b) + static_cast<gindex_t>(*li - 1)) : std::nullopt;
+    [[nodiscard]] inline std::optional<index_t> get_random_unhappy(Rng& rng) const {
+        const std::uint64_t mask = unhappy_mask_();
+        if (mask == 0) return std::nullopt;
+
+        auto bitpos = core::random_setbit_index_u64(mask, rng);
+        SCHELLING_DEBUG_ASSERT(bitpos.has_value());
+        if (!bitpos) return std::nullopt;
+        SCHELLING_DEBUG_ASSERT(((mask_interior_ >> *bitpos) & 1ull) != 0);
+        return static_cast<index_t>(*bitpos);                  // guaranteed ∈ [1..len_]
     }
 
-    // Optional block access
-    PathGraph_64&       block(std::size_t i)       { return blocks_[i]; }
-    const PathGraph_64& block(std::size_t i) const { return blocks_[i]; }
+    // -------------------- Mutators (interior only) --------------------
+    inline void set(index_t v, bool occ = true, bool color = false) {
+        v+= first_index; // adjust for ghost at 0
+        occ_ &= ~(1ull << v); // clear first
+        occ_ |= (occ << v); 
+        col_ &= ~(1ull << v);
+        col_ |= (color << v);
+    }
+
+
+    // Local unhappy? (interior only; ghosts already encode neighbors)
+    [[nodiscard]] inline bool is_unhappy(index_t v) const {
+        return ((unhappy_mask_() >> v) & 1ull) != 0;
+    }
 
 private:
-    std::uint64_t             n_;
-    std::vector<PathGraph_64> blocks_;
+    plf::bitset<B> occ_;
+    plf::bitset<B> col_;
+    std::uint64_t mask_interior_; // bits 1..len_ set; 0 and 63 clear
 
-    // Block partitioning (62 interior per block)
-    static std::size_t num_blocks_for_(std::uint64_t n) {
-        return static_cast<std::size_t>((n + PathGraph_64::kMaxInterior - 1) / PathGraph_64::kMaxInterior);
-    }
-    inline PathGraph_64::index_t block_len_(std::size_t b) const {
-        const std::uint64_t start = base_of(b);
-        if (start >= n_) return 0;
-        const std::uint64_t rem = n_ - start;
-        return static_cast<PathGraph_64::index_t>(rem >= PathGraph_64::kMaxInterior ? PathGraph_64::kMaxInterior : rem);
+    // Precompute interior mask once: bits 1..len_ set, else 0.
+    static inline plf::bitset<B> make_interior_mask_(index_t len) {
+        plf::bitset<B> mask = 0;
+        mask[0] = 1;
+        mask[B-1] = 1;
+        return ~mask;
     }
 
-    // Keep ghost boundaries consistent (construction + after updates)
-    inline void sync_all_boundaries_() {
-        const std::size_t B = blocks_.size();
-        for (std::size_t b = 0; b < B; ++b) {
-            // left ghost of b mirrors last interior of b-1
-            if (b == 0 || blocks_[b-1].length() == 0) {
-                blocks_[b].set_left_boundary(false, false);
-            } else {
-                const auto lp  = blocks_[b-1].length();
-                const bool occ = ((blocks_[b-1].occupancy_mask() >> lp) & 1ull) != 0;
-                const bool col = ((blocks_[b-1].color_mask()     >> lp) & 1ull) != 0;
-                blocks_[b].set_left_boundary(occ, col);
-            }
-            // right ghost of b mirrors first interior of b+1
-            if (b + 1 >= B || blocks_[b+1].length() == 0) {
-                blocks_[b].set_right_boundary(false, false);
-            } else {
-                const bool occ = ((blocks_[b+1].occupancy_mask() >> 1) & 1ull) != 0;
-                const bool col = ((blocks_[b+1].color_mask()     >> 1) & 1ull) != 0;
-                blocks_[b].set_right_boundary(occ, col);
-            }
-        }
+    // Right-shift on unsigned zero-fills; em covers edges (i,i+1), including ghosts.
+    [[nodiscard]] inline std::uint64_t edge_mismatch_() const {
+        return (col_ ^ (col_ >> 1)) & (occ_ & (occ_ >> 1)); // XOR colors where both endpoints occupied
     }
 
-    inline void sync_boundaries_after_local_change_(std::size_t b, lindex_t o) {
-        // If first interior changed (o==1), update RIGHT ghost of previous block
-        if (o == 1 && b > 0) {
-            const bool occ = ((blocks_[b].occupancy_mask() >> 1) & 1ull) != 0;
-            const bool col = ((blocks_[b].color_mask()     >> 1) & 1ull) != 0;
-            blocks_[b-1].set_right_boundary(occ, col);
-        }
-        // If last interior changed (o==len), update LEFT ghost of next block
-        const auto len = blocks_[b].length();
-        if (o == len && (b + 1) < blocks_.size()) {
-            const bool occ = ((blocks_[b].occupancy_mask() >> len) & 1ull) != 0;
-            const bool col = ((blocks_[b].color_mask()     >> len) & 1ull) != 0;
-            blocks_[b+1].set_left_boundary(occ, col);
-        }
+    [[nodiscard]] inline std::uint64_t edges() const {
+        return (occ_ & (occ_ >> 1)); // edges where both endpoints occupied
     }
 
-    template<class Rng, class WeightFn>
-    inline std::optional<std::size_t> choose_block_by_weights_(Rng& rng, WeightFn wfn) const {
-        const std::size_t B = blocks_.size();
-        std::vector<double> w; w.reserve(B);
-        double sum = 0.0;
-        for (std::size_t b = 0; b < B; ++b) {
-            const double wb = wfn(blocks_[b]);
-            w.push_back(wb);
-            sum += wb;
-        }
-        if (sum == 0.0) return std::nullopt; // no eligible vertices
+    // Bitwise mask of interior vertices unhappy under the majority/minority rule.
+    [[nodiscard]] inline std::uint64_t minority_unhappy_mask_() const {
+        const uint64_t nm = ~edge_mismatch_() & edges();        // edge mismatches (occupancy-gated)
+        const uint64_t is_happy = nm | (nm << 1);          // at least one matched edge is satisfying
+        return (~is_happy) & occ_;
+    }
 
-        std::discrete_distribution<std::size_t> dist(w.begin(), w.end()); // [0,B), prob ∝ w_i
-        return std::optional<std::size_t>(dist(rng));
+    [[nodiscard]] inline std::uint64_t majority_unhappy_mask_() const {
+        const uint64_t em = edge_mismatch_();                 // edge mismatches (occupancy-gated)
+        return em | (em << 1);                                // at least one mismatched edge
+    }
+
+    [[nodiscard]] inline std::uint64_t unhappy_mask_() const {
+        const bool minority_ok = ::core::schelling::is_minority_ok();
+        return minority_ok ? minority_unhappy_mask_() : majority_unhappy_mask_();
+    }
+
+    inline void set_bit_(std::uint8_t bit, bool occ, bool color) {
+        const std::uint64_t m = 1ull << bit;        // single-bit mask
+        if (occ)   occ_ |= m; else occ_ &= ~m;      // set/clear occupancy
+        if (color) col_ |= m; else col_ &= ~m;      // set/clear color
     }
 };

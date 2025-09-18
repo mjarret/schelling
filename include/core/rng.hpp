@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <random>
 #include <type_traits>
 
@@ -8,6 +9,7 @@ namespace core {
 
 /**
  * @brief SplitMix64 generator for robust seeding.
+ * @note Used to expand a 64-bit seed into high-entropy state for xoshiro.
  */
 struct SplitMix64 {
     std::uint64_t state;
@@ -21,10 +23,10 @@ struct SplitMix64 {
      * @return Next value.
      */
     inline std::uint64_t next() {
-        std::uint64_t z = (state += 0x9E3779B97F4A7C15ULL);
-        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
-        z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
-        return z ^ (z >> 31);
+        std::uint64_t z = (state += 0x9E3779B97F4A7C15ULL); // 64-bit golden ratio increment
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;       // mix step 1
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;       // mix step 2
+        return z ^ (z >> 31);                               // final avalanche
     }
 };
 
@@ -33,6 +35,9 @@ struct SplitMix64 {
  */
 struct Xoshiro256ss {
     std::array<std::uint64_t,4> s{0,0,0,0};
+    using result_type = std::uint64_t;
+    static constexpr result_type min() noexcept { return 0u; }
+    static constexpr result_type max() noexcept { return std::numeric_limits<result_type>::max(); }
     /**
      * @brief Default constructor (zero state).
      */
@@ -82,7 +87,7 @@ struct Xoshiro256ss {
      * @return Rotated value.
      */
     static inline std::uint64_t rotl(const std::uint64_t x, int k) {
-        return (x << k) | (x >> (64 - k));
+        return (x << k) | (x >> (64 - k)); // rotates are single uop on x86-64
     }
 
     /**
@@ -90,7 +95,7 @@ struct Xoshiro256ss {
      * @return Next 64-bit value.
      */
     inline std::uint64_t next_u64() {
-        const std::uint64_t result = rotl(s[1] * 5ULL, 7) * 9ULL;
+        const std::uint64_t result = rotl(s[1] * 5ULL, 7) * 9ULL; // xoshiro** output function
         const std::uint64_t t = s[1] << 17;
 
         s[2] ^= s[0];
@@ -104,12 +109,14 @@ struct Xoshiro256ss {
         return result;
     }
 
+    inline result_type operator()() { return next_u64(); }
+
     /**
      * @brief Uniform double in [0,1).
      * @return Double sample.
      */
     inline double uniform01() {
-        return (next_u64() >> 11) * (1.0/9007199254740992.0);
+        return (next_u64() >> 11) * (1.0/9007199254740992.0); // 53 bits -> [0,1) exactly representable
     }
 
     /**
@@ -118,8 +125,8 @@ struct Xoshiro256ss {
      * @return Sampled value without modulo bias.
      */
     inline std::uint64_t uniform_u64(std::uint64_t bound) {
-        std::uint64_t x, m = -bound % bound;
-        do { x = next_u64(); } while (x < m);
+        std::uint64_t x, m = -bound % bound;                 // rejection threshold to avoid modulo bias
+        do { x = next_u64(); } while (x < m);                 // branchless-friendly loop on typical RNG
         return x % bound;
     }
 

@@ -1,2 +1,3 @@
+/home/michael/Dropbox/Workspace/Schelling/build/CMakeFiles/schelling.dir
 /home/michael/Dropbox/Workspace/Schelling/build/CMakeFiles/edit_cache.dir
 /home/michael/Dropbox/Workspace/Schelling/build/CMakeFiles/rebuild_cache.dir

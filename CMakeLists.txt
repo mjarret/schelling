@@ -11,6 +11,8 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# (tests removed)
+
 # ---- IPO/LTO (enable if toolchain supports it) ------------------------------
 include(CheckIPOSupported)
 check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
@@ -41,41 +43,71 @@ add_library(core INTERFACE)
 target_include_directories(core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_features(core INTERFACE cxx_std_20)
 
-# ---- Global compile options (per-compiler, per-config) ----------------------
-# GCC/Clang
-add_compile_options(
-  $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<CONFIG:Release>>:-O3 -DNDEBUG -fno-omit-frame-pointer>
-  $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<CONFIG:RelWithDebInfo>>:-O3 -g -fno-omit-frame-pointer>
-  $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<CONFIG:Debug>>:-Og -g3 -fno-omit-frame-pointer>
-  $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
-  # Optional: native tuning (comment out if you need portable binaries)
-  $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<CONFIG:Release>>:-march=native>
-  # Enable BMI/BMI2 only if supported
-  $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<BOOL:${COMPILER_SUPPORTS_BMI}>>:-mbmi>
-  $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<BOOL:${COMPILER_SUPPORTS_BMI2}>>:-mbmi2>
+# ---- Third-party: plf_bitsets (header-only) ---------------------------------
+# Make the plf::bitset (used by bitset benchmarks in the parent workspace) available
+# to projects in this repo via the core interface include path.
+include(FetchContent)
+FetchContent_Declare(plf_bitsets
+  GIT_REPOSITORY https://github.com/mattreecebentley/plf_bitsets.git
+  GIT_TAG main
 )
+FetchContent_MakeAvailable(plf_bitsets)
+target_include_directories(core INTERFACE ${plf_bitsets_SOURCE_DIR})
 
-# MSVC
-add_compile_options(
-  $<$<CXX_COMPILER_ID:MSVC>:/W4 /permissive- /EHsc>
-  $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<CONFIG:Release>>:/O2 /DNDEBUG /Gy /GF /Zc:inline /Oi /Oy->   # /Oy- keeps frame pointer
-  $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<CONFIG:RelWithDebInfo>>:/O2 /Zi /Gy /Zc:inline /Oi /Oy->
-  $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<CONFIG:Debug>>:/Od /Zi /Oy->
-  # Enable AVX2 if the compiler accepts it (commonly defines __AVX2__)
-  $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<BOOL:${MSVC_SUPPORTS_AVX2}>>:/arch:AVX2>
-)
+# ---- Global compile options (per-compiler, per-config) ----------------------
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+  if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_compile_options(-O3 -DNDEBUG -fno-omit-frame-pointer -march=native)
+  elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    add_compile_options(-O3 -g -fno-omit-frame-pointer)
+  elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(-Og -g3 -fno-omit-frame-pointer)
+  endif()
+  if(COMPILER_SUPPORTS_BMI)
+    add_compile_options(-mbmi)
+  endif()
+  if(COMPILER_SUPPORTS_BMI2)
+    add_compile_options(-mbmi2)
+  endif()
+elseif(MSVC)
+  add_compile_options(/W4 /permissive- /EHsc)
+  if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_compile_options(/O2 /DNDEBUG /Gy /GF /Zc:inline /Oi /Oy-)
+  elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    add_compile_options(/O2 /Zi /Gy /Zc:inline /Oi /Oy-)
+  elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(/Od /Zi /Oy-)
+  endif()
+  if(MSVC_SUPPORTS_AVX2)
+    add_compile_options(/arch:AVX2)
+  endif()
+endif()
 
 # ---- Compile-time selection parameters --------------------------------------
 set(GRAPH "PATH" CACHE STRING "Graph type (PATH, CLIQUE)")
 set(K 2 CACHE STRING "Number of colors (K>=1)")
 set(N 64 CACHE STRING "Number of vertices for the selected graph")
+## (test parameters removed)
 
-# ---- Example executable (optional) ------------------------------------------
+# ---- Executables -------------------------------------------------------------
+# Build main app if present
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
+  add_executable(schelling src/main.cpp)
+  target_link_libraries(schelling PRIVATE core)
+  if(ipo_supported)
+    set_property(TARGET schelling PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+  endif()
+endif()
+
+# Optional experiment entry (legacy name)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/run_experiment.cpp")
   add_executable(run_experiment src/run_experiment.cpp)
   target_link_libraries(run_experiment PRIVATE core)
   target_compile_definitions(run_experiment PRIVATE GRAPH_${GRAPH} K=${K} N=${N})
   if(ipo_supported)
     set_property(TARGET run_experiment PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
-  end_if()
+  endif()
 endif()
+
+# No built-in tests by default.
