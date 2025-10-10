@@ -14,6 +14,7 @@
 #include "sim/sim.hpp"              // includes run_schelling_process_visit overload
 #include "sim/job_handler.hpp"      // contains run_jobs_heatmap_streamed + to_dense
 #include "cli/cli.hpp"
+#include "io/plot.hpp"
 
 // ---- Build-time graph sizes (override with -DLOLLIPOP_CLIQUE=... -DLOLLIPOP_PATH=...) ----
 #ifndef LOLLIPOP_CLIQUE
@@ -101,6 +102,15 @@ int main(int argc, char** argv) {
     write_heatmap_csv(hm, out_csv);
     std::cout << "Wrote heatmap to " << out_csv.string()
               << " (" << hm.rows << " rows × " << hm.bins << " bins)\n";
+
+    // Convert (if you have the streamed sparse form)
+    // sim::Heatmap hm = sim::to_dense(sparse, bins);
+
+    // Write an image you can open anywhere
+    io::write_heatmap_ppm(hm, "heatmap.ppm", /*scale=*/2, /*log_scale=*/true);
+
+    // (Optional) quick terminal preview
+    io::plot_heatmap_matplot(hm);
 
     // Best-effort cleanup of any legacy JIT cache directory (harmless if absent)
     try {
