@@ -1,6 +1,5 @@
 ﻿#pragma once
 
-#include <cstdint>
 #include "core/config.hpp"
 
 namespace core {

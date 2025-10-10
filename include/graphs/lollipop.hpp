@@ -1,9 +1,10 @@
-// lollipop.hpp — minimal lollipop graph (clique + path)
+// LollipopGraph — composite graph (clique + path) with a single bridge
 #pragma once
 
 #include <cstddef>
 #include <random>
-#include <optional>
+#include <limits>
+#include <limits>
 #include "core/schelling_threshold.hpp"
 #include "graphs/clique.hpp"
 #include "graphs/path.hpp"
@@ -13,14 +14,15 @@ namespace graphs { namespace test { template<std::size_t CS, std::size_t PL> str
 #endif
 
 namespace graphs {
+using size_t = core::size_t;
+using count_t = core::count_t;
 
-template<std::size_t CliqueSize = 50, std::size_t PathLength = 450>
+template<size_t CliqueSize = 50, size_t PathLength = 450>
 class LollipopGraph {
 public:
-    static constexpr std::size_t CliqueBase = 0;
-    static constexpr std::size_t PathBase   = CliqueSize;
-    static constexpr std::size_t TotalSize  = CliqueSize + PathLength;
-
+    static constexpr size_t CliqueBase = 0;
+    static constexpr size_t PathBase   = CliqueSize;
+    static constexpr size_t TotalSize  = CliqueSize + PathLength;
 
 #if SCHELLING_TEST_ACCESSORS
     friend struct graphs::test::LollipopAccess<CliqueSize, PathLength>;
@@ -30,8 +32,9 @@ public:
 
     // ----------------------------- Public API -----------------------------
 
-    // Count unhappy vertices (no double count of the bridge; bridge evaluated with full lollipop neighborhood)
-    inline std::size_t unhappy_count() const {
+    // Count unhappy vertices (bridge evaluated against its full lollipop neighborhood,
+    // then reconciled with the clique-only view to avoid double counting)
+    inline count_t unhappy_count() const {
         return bridge_unhappy() 
             - bridge_unhappy_in_clique_sense_() 
             + clique_.unhappy_count() 
@@ -40,10 +43,10 @@ public:
 
     // Uniformly sample an unhappy vertex index over the lollipop graph
     template<class Rng>
-    inline std::size_t get_unhappy(Rng& rng) const {
-        std::size_t c_unhappy = clique_.unhappy_count();
-        std::size_t p_unhappy = path_.unhappy_count();
-        std::size_t explicit_bridge_unhappy = bridge_unhappy() != bridge_unhappy_in_clique_sense_(); // 1 iff bridge differs
+    inline size_t get_unhappy(Rng& rng) const {
+        double c_unhappy = clique_.unhappy_count();
+        double p_unhappy = path_.unhappy_count();
+        double explicit_bridge_unhappy = bridge_unhappy() != bridge_unhappy_in_clique_sense_(); // 1 iff bridge differs
         int pick = std::discrete_distribution<int>({c_unhappy, p_unhappy, explicit_bridge_unhappy})(rng);
         if (pick == 0) return clique_.get_unhappy(rng).value();
         if (pick == 1) return path_.get_unhappy(rng) + PathBase;
@@ -52,20 +55,18 @@ public:
 
     // Uniformly sample an unoccupied vertex (correctly deduplicating the bridge)
     template<class Rng>
-    inline std::size_t get_unoccupied(Rng& rng) const {
-        std::size_t c_unocc = clique_.count_by_color(std::nullopt);
-        std::size_t p_unocc = path_.count_by_color(std::nullopt);
+    inline size_t get_unoccupied(Rng& rng) const {
+        double c_unocc = clique_.count_by_color(std::nullopt);
+        double p_unocc = path_.count_by_color(std::nullopt);
         std::discrete_distribution<int> pick({c_unocc, p_unocc});
         int side = pick(rng);
-        return side ? path_.get_unoccupied(rng) + PathBase : clique_.get_unoccupied(rng);
+        return side ? (path_.get_unoccupied(rng) + PathBase) : clique_.get_unoccupied(rng);
     }
 
     // Pop/place with proper bridge synchronization
-    inline bool pop_agent(std::size_t from) noexcept {
+    inline bool pop_agent(size_t from) noexcept {
         CORE_ASSERT_H(from < TotalSize, "LollipopGraph::pop_agent: index out of range");
         CORE_ASSERT_H(is_occupied(from), "LollipopGraph::pop_agent: vertex not occupied");
-
-        // Original bridge-branch based on bridge_index_()
         if (from == bridge_index_()) [[unlikely]] {
             bool c = bridge_color_;
             clique_.pop_agent(from);
@@ -80,7 +81,7 @@ public:
         }
     }
 
-    inline void place_agent(std::size_t to, bool c) noexcept {
+    inline void place_agent(size_t to, bool c) noexcept {
         CORE_ASSERT_H(to < TotalSize, "LollipopGraph::place_agent: index out of range");
         CORE_ASSERT_H(!is_occupied(to), "LollipopGraph::place_agent: vertex already occupied");
 
@@ -105,16 +106,16 @@ private:
     //     color 0: [0, c0_) → bridge idx = 0
     //     color 1: [c0_, c0_+c1_) → bridge idx = c0_
     //     none    : [c0_+c1_, CliqueSize) → bridge idx = c0_ + c1_ = occupied_count()
-    inline std::size_t bridge_index_() const noexcept {
-        return (bridge_occupied_) ? bridge_color_*clique_.count_by_color(0) : clique_.occupied_count();
+    inline size_t bridge_index_() const noexcept {
+        return (bridge_occupied_) ? (bridge_color_*clique_.count_by_color(0)) : clique_.occupied_count();
     }
 
     // --- Bridge unhappy (three senses) ---
     // These use only counts + neighbor color on path[1], so they are O(1).
     inline bool bridge_unhappy_in_clique_sense_() const noexcept {
         if(!bridge_occupied_) [[likely]] return false;
-        const std::size_t neigh = clique_.occupied_count() - 1;
-        const std::size_t disagree = clique_.count_by_color(!bridge_color_);
+        const count_t neigh = clique_.occupied_count() - 1;
+        const count_t disagree = clique_.count_by_color(!bridge_color_);
         return core::schelling::is_unhappy(disagree, neigh);
     }
 
@@ -123,11 +124,11 @@ private:
         return core::schelling::is_unhappy(bridge_frustration(), bridge_neighbors());
     }
 
-    inline size_t bridge_neighbors() const noexcept {
+    inline count_t bridge_neighbors() const noexcept {
         return clique_.occupied_count() - 1 + path_.is_occupied(0);
     }
 
-    inline size_t bridge_frustration() const noexcept {
+    inline count_t bridge_frustration() const noexcept {
         return clique_.count_by_color(!bridge_color_) + (path_.is_occupied(0) && (path_.get_color(0) != bridge_color_));
     }
 

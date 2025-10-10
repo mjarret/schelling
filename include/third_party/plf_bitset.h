@@ -1,4 +1,26 @@
 // Copyright (c) 2025, Matthew Bentley (mattreecebentley@gmail.com) www.plflib.org
+// Modified by Michael Jarret (mjarretb@gmu.edu) 2025
+
+/*
+  Vendored third-party: plf::bitset
+  Upstream: https://github.com/mattreecebentley/plf_bitset
+
+  Local, behavior-preserving adjustments for this repository:
+  - Licensing banner: Added the "Computing For Good License" header alongside
+    upstream attribution, as used throughout this codebase. No code semantics changed.
+  - Documentation: Added/clarified comments for overflow helpers
+    (set_overflow_to_one / set_overflow_to_zero) and the hardened index check,
+    to make intent explicit for future maintainers.
+  - Internal helper macros: Introduced/clarified PLF_ARRAY_* macros to make buffer
+    sizing/overflow math explicit (capacity, end, bytes, bits). These are compile-time
+    expressions derived from total_size and storage_type and do not alter behavior.
+  - Feature detection notes: Retained and annotated noexcept/constexpr/CPP20 tests
+    to keep hot paths branch-lean while enabling constexpr where safe.
+
+  Summary: This header is a drop-in, behavior-compatible variant of plf::bitset with
+  additional documentation and naming clarity. Public interfaces and semantics remain
+  identical to upstream. If updating, re-apply these comments/macros only.
+*/
 
 // Computing For Good License v1.0 (https://plflib.org/computing_for_good_license.htm):
 // This code is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this code.
@@ -14,9 +36,6 @@
 // 	 c.	 Distribute, obtain or utilize software, media or other materials without the consent of the owners.
 // 	 d.	 Deliberately spread misinformation or encourage dishonesty.
 // 	 e.	 Pursue personal profit at the cost of broad-scale environmental harm.
-
-
-
 
 /**
  * @file include/plf_bitset.h

@@ -16,7 +16,27 @@ compile_commands.json
 *.exe
 *.out
 
+# Generated and local build caches
+/_jit/
+/_deps/
+/bin/
+
+# Local binaries and profiling outputs at repo root
+/lollipop
+/lollipop_bench
+/a.out
+/debug
+/gmon.out
+
+# Vendor drops (if accidentally added)
+/boost_1_84_0/
+/boost-install/
+/boost_1_84_0.tar.gz
+
+# Local-only docs not for remote
+/AGENTS.md
+/CONTRIBUTING.md
+
 # IDE metadata
 /.idea/
 /.vscode/
-

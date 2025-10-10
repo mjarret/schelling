@@ -39,6 +39,25 @@
 using color_count_t = CORE_COLOR_COUNT_T;
 namespace core { using color_count_t = ::color_count_t; }
 
+// Logical color value type used by graphs and sims (currently boolean).
+// Introduced to enable multi-color extensions in the future without
+// rewriting call sites; kept as an alias for now.
+#ifndef CORE_COLOR_T
+#define CORE_COLOR_T bool
+#endif
+namespace core { using color_t = CORE_COLOR_T; }
+
+// Index type for addressing vertices/positions in graphs.
+// Abstracted to enable JIT-time selection of the narrowest sufficient type.
+#ifndef CORE_INDEX_T
+#define CORE_INDEX_T std::size_t
+#endif
+namespace core { using index_t = CORE_INDEX_T; }
+// Project-wide size alias for readability; intended for indices and sizes.
+namespace core { using size_t = index_t; }
+// Alias for counts that track indexable quantities; currently identical to index_t.
+namespace core { using count_t = index_t; }
+
 // Lightweight ANSI color tokens for optional debug/printing.
 // Keep simple pointers to string literals to avoid extra headers.
 namespace core { namespace config {

@@ -3,7 +3,7 @@ CXX ?= c++
 MODE ?= release
 
 CXXFLAGS_COMMON := -std=gnu++20 -Wall -Wextra -Wpedantic \
-                   -Iinclude -Iinclude/core -Iinclude/graphs -Iinclude/sim
+                   -Iinclude -Iinclude/core -Iinclude/graphs -Iinclude/sim -Iinclude/third_party
 
 CXXFLAGS_RELEASE := -O3 -DNDEBUG -fno-omit-frame-pointer -march=native -mbmi -mbmi2
 CXXFLAGS_DEBUG   := -Og -g3 -fno-omit-frame-pointer -march=native -mbmi -mbmi2
@@ -40,12 +40,12 @@ else
   CXXFLAGS_SELECTED := $(CXXFLAGS_RELEASE)
 endif
 
-LP_SRC := src/main.cpp
+LP_SRCS := src/main.cpp src/cli/cli.cpp src/jit/jit.cpp
 LP_BIN := lollipop
 
 # Google Benchmark target (requires libbenchmark installed)
 GBENCH_LIBS ?= -lbenchmark -lpthread
-BENCH_SRC := bench/lollipop_bench.cpp
+BENCH_SRC := testing/bench/lollipop_bench.cpp
 BENCH_BIN := lollipop_bench
 
 .PHONY: all release debug run bench clean purge print-flags help
@@ -58,8 +58,11 @@ release: $(LP_BIN)
 debug: MODE := debug
 debug: $(LP_BIN)
 
-$(LP_BIN): $(LP_SRC)
-	$(CXX) $(CXXFLAGS_COMMON) $(CXXFLAGS_SELECTED) $< -o $@
+DL_LIBS ?= -ldl
+
+$(LP_BIN): $(LP_SRCS)
+	$(CXX) $(CXXFLAGS_COMMON) $(CXXFLAGS_SELECTED) $(LP_SRCS) -o $@ $(DL_LIBS)
+
 
 run: $(LP_BIN)
 	./$(LP_BIN)
@@ -73,7 +76,8 @@ clean:
 	rm -f $(LP_BIN) *.o
 
 purge: clean
-	rm -rf build-fast build-bench CMakeCache.txt CMakeFiles cmake_install.cmake _deps
+	rm -rf build-fast build-bench CMakeCache.txt CMakeFiles cmake_install.cmake _deps _jit
+
 
 print-flags:
 	@echo "CXX=$(CXX)";

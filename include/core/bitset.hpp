@@ -2,7 +2,7 @@
 #pragma once
 
 #include "core/config.hpp"
-#include "core/plf_bitset.h"
+#include "third_party/plf_bitset.h"
 
 namespace core {
 

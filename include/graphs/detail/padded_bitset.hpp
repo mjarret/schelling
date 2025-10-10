@@ -1,3 +1,15 @@
+// PaddedBitset — small wrapper around core::bitset adding guard cells
+//
+// Purpose:
+// - Provide left/right padding so neighbor accesses (v-1,v+1) can be branch-free.
+// - Offer helpers for random kth-one/zero selection and a raw() view for tests.
+// - Keep the surface minimal; equality operators were intentionally removed.
+//
+// Notes:
+// - set_sentinels() toggles padding bits based on the SentinelsFilled template flag.
+// - random_setbit_index/random_unsetbit_index return indices in the logical window [0,B).
+// - Conversion operator to core::bitset<B> compacts out the padding.
+//
 #pragma once
 
 #include <cstddef>
@@ -56,8 +68,7 @@ public:
     }
 
     inline bool operator[](std::size_t idx) const noexcept { return data_[idx + Padding]; }
-    inline bool operator==(const PaddedBitset& other) const noexcept { return data_ == other.data_; }
-    inline bool operator!=(const PaddedBitset& other) const noexcept { return data_ != other.data_; }
+    // Equality operators are intentionally omitted to keep the surface minimal; compare raw() if needed in tests.
 
     inline void reset(std::size_t idx) noexcept {
         const std::size_t raw = idx + Padding;
@@ -124,28 +135,21 @@ public:
     template<class URBG>
     std::size_t random_setbit_index(URBG& rng) const noexcept {
         std::uniform_int_distribution<std::size_t> pick(0, count() - 1u);
-        CAPTURE(padding_ones_left);
         const std::size_t k = pick(rng) + padding_ones_left;
         auto ret = data_.kth_one(k) - Padding;
-        REQUIRE(ret < B);
         return ret;
     }
 
     template<class URBG>
     std::size_t random_unsetbit_index(URBG& rng) const noexcept {
         std::uniform_int_distribution<std::size_t> pick(0, B - count() - 1u);
-        CAPTURE(padding_ones_left);
         const std::size_t k = pick(rng) + (Padding - padding_ones_left);
-        auto ret = data_.kth_zero(k) - Padding;
-        REQUIRE(ret < B);
         return data_.kth_zero(k) - Padding;
     }
 
 private:
     inline void apply_sentinels() noexcept {
-        if constexpr (Padding == 0) {
-            return;
-        }
+        if constexpr (Padding == 0)  return; 
         if constexpr (SentinelsFilled) {
             data_.set_range(0, Padding - 1);
             data_.set_range(B + Padding, B + 2 * Padding - 1);
