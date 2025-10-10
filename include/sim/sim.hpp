@@ -35,4 +35,20 @@ inline std::vector<core::count_t> run_schelling_process(G& graph, double density
     return history;
 }
 
+template <class G, class URBG, class StepFn>
+    requires GraphLike<G, URBG> && std::invocable<StepFn&, std::size_t, core::count_t>
+inline void run_schelling_process_visit(G& graph, double density, URBG& rng, StepFn&& on_step) {
+    initialize_graph(graph, density, rng);
+    std::size_t s = 0;
+    core::count_t u = graph.unhappy_count();
+    on_step(s++, u); // initial state
+    while (u > 0) {
+        const core::size_t from = graph.get_unhappy(rng);
+        const core::size_t to   = graph.get_unoccupied(rng);
+        graph.place_agent(to, graph.pop_agent(from));
+        u = graph.unhappy_count();
+        on_step(s++, u);
+    }
+}
+
 } // namespace sim

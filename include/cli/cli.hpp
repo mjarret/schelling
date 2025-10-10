@@ -9,24 +9,20 @@
 namespace cli {
 
 struct Options {
-    // Schelling threshold as p/q
+    // Schelling threshold as p/q (defaults to 1/2)
     std::uint64_t p = 1;
     std::uint64_t q = 2;
     bool pq_overridden = false;
-    // Experiment config
-    std::uint64_t experiments = 0; // 0 means "use default"
-    std::size_t   max_steps  = 0;  // 0 means "use default"
-    // Graph size (Lollipop)
+
+    // Graph size (Lollipop) with defaults
     std::size_t clique_size = 50;
     std::size_t path_length = 450;
-    // Threads
-    bool threads_set = false;
-    bool threads_max = false; // if true, use omp_get_max_threads()
-    int  threads = 0;         // explicit thread count if set
-    // Misc
-    bool show_help = false;   // legacy; parse_args returns want_help separately
-    // Agent density (optional runtime parameter), TODO: integrate into initialization
-    std::optional<double> agent_density; // e.g., 0.0..1.0; currently unused
+
+    // Agent density in [0,1] (default set)
+    double agent_density = 0.8;
+
+    // Optional maximum simulation steps; nullopt => ∞ (no cap)
+    std::optional<std::size_t> max_steps;
 };
 
 // Parse CLI arguments with Boost.Program_options.

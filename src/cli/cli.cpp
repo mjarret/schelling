@@ -34,7 +34,8 @@ Options parse_args(int argc, char** argv, bool& want_help, std::string& help_tex
     want_help = false;
 
     std::string tau_s;      // p/q or decimal
-    double agent_density_val = 0.0; // set when flag present
+    double agent_density_val = 0.8; // default; overridden if provided
+    std::size_t max_steps_val = 0;  // if present -> set; absent -> ∞
 
     cxxopts::Options desc("lollipop", "Schelling Lollipop Options");
     // register with defaults where applicable (cxxopts API: spec, desc, value)
@@ -45,7 +46,8 @@ Options parse_args(int argc, char** argv, bool& want_help, std::string& help_tex
         ("q", "Denominator q for tau=p/q (nonzero)", cxxopts::value<std::uint64_t>(opt.q)->default_value("2"))
         ("clique-size", "Clique size (compiled combos)", cxxopts::value<std::size_t>(opt.clique_size)->default_value("50"))
         ("path-length", "Path length (compiled combos)", cxxopts::value<std::size_t>(opt.path_length)->default_value("450"))
-        ("d,agent-density", "Agent density in [0,1] (TODO: unused)", cxxopts::value<double>(agent_density_val))
+        ("d,agent-density", "Agent density in [0,1]", cxxopts::value<double>(agent_density_val)->default_value("0.8"))
+        ("m,max-steps", "Maximum steps per experiment (default ∞)", cxxopts::value<std::size_t>(max_steps_val))
     ;
     help_text = desc.help();
     auto result = desc.parse(argc, argv);
@@ -77,8 +79,13 @@ Options parse_args(int argc, char** argv, bool& want_help, std::string& help_tex
         }
     }
 
-    // Agent density flag (no validation, stored for later use)
-    if (result.count("agent-density")) { opt.agent_density = agent_density_val; }
+    // Agent density always set (has a default in parser)
+    opt.agent_density = agent_density_val;
+
+    // Optional max steps: set only if provided
+    if (result.count("max-steps")) {
+        opt.max_steps = max_steps_val;
+    }
 
     return opt;
 }
