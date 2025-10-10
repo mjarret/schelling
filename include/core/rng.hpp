@@ -111,33 +111,7 @@ struct Xoshiro256ss {
 
     inline result_type operator()() { return next_u64(); }
 
-    /**
-     * @brief Uniform double in [0,1).
-     * @return Double sample.
-     */
-    inline double uniform01() {
-        return (next_u64() >> 11) * (1.0/9007199254740992.0); // 53 bits -> [0,1) exactly representable
-    }
-
-    /**
-     * @brief Uniform integer in [0, bound).
-     * @param bound Upper bound (exclusive).
-     * @return Sampled value without modulo bias.
-     */
-    inline std::uint64_t uniform_u64(std::uint64_t bound) {
-        std::uint64_t x, m = -bound % bound;                 // rejection threshold to avoid modulo bias
-        do { x = next_u64(); } while (x < m);                 // branchless-friendly loop on typical RNG
-        return x % bound;
-    }
-
-    /**
-     * @brief Uniform index in [0, n).
-     * @param n Number of items.
-     * @return Index sample.
-     */
-    inline std::size_t uniform_index(std::size_t n) {
-        return uniform_u64(n);
-    }
+    // Note: unused uniform convenience functions removed.
 };
 
 /**
@@ -149,5 +123,8 @@ inline std::uint64_t splitmix_hash(std::uint64_t x) {
     SplitMix64 sm(x);
     return sm.next();
 }
+
+
+// FastBernoulli and uniform helpers were unused; removed.
 
 }

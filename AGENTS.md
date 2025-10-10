@@ -1,3 +1,13 @@
+SINGLE MOST IMPORTANT RULE — REFRESH CONTEXT FIRST
+- Before making any change, writing code, or running commands, the agent MUST refresh its knowledge of the codebase. This includes re-scanning the repo (e.g., `rg`, tree), rereading AGENTS.md files in scope, and verifying current naming/concepts in relevant headers and sources. No actions proceed based on stale memory.
+- Confirm key contracts and identifiers (e.g., GraphLike vs Graph) before edits. If uncertainty remains, add a TODO and stop rather than guessing.
+
+Zero-Overreach Rule (Do Exactly What Was Asked)
+- Perform only the explicitly requested change(s). Do not refactor, rename, “fix,” or modify adjacent code, files, or logic unless the user asks for it.
+- If a requested change cannot be completed without additional edits, stop and ask for confirmation with the minimal options needed.
+- Keep edits strictly scoped to the files and lines necessary for the request.
+- No opportunistic cleanups, build fixes, or style changes outside scope.
+
 Performance-First Coding Contract
 
 Scope
@@ -11,7 +21,7 @@ Ground Rules
 - No runtime consistency checks: Do not add range/validity guards (e.g., color-in-range, bounds checks, "skip invalid" branches) in library code or hot paths. The introduction of any such checks is treated as a failure unless explicitly requested. Use compile-time constraints (static_assert, types) instead.
 - Branchless by default: Prefer branchless formulations and strength reduction. Keep a branch only when it is demonstrably faster on the expected data distribution.
 - Throughput over footprint: Moderate, purposeful memory overhead is acceptable to reduce latency, allocations, or cache misses. Avoid unbounded growth or needless copies.
-- Modern C++20: RAII, const-correctness, move semantics, [[nodiscard]] where appropriate, contiguous storage, avoid virtual indirection and heap allocations in hot paths.
+- Modern C++20: RAII, const-correctness, move semantics, contiguous storage, avoid virtual indirection and heap allocations in hot paths.
 - Measurements: Include time complexity, memory notes, and a micro-optimization rationale when proposing changes.
 
 Extreme Efficiency Clause
@@ -61,3 +71,36 @@ CliqueGraph Policy (Counts-First)
 - Updates via counts only: change_color modifies counts and adjusts tf using derived constants; avoid touching unrelated state.
 - Index→color mapping: When mapping a vertex index to a color, use prefix sums over counts; avoid materializing vertex arrays.
 - Complexity target: All per-operation costs O(1) or O(K) (small), independent of N except through counts.
+
+Bit-Twiddling Hacks (HPC)
+- Source reference: “Bit Twiddling Hacks” by Sean Eron Anderson (Stanford). Use these patterns where they improve throughput. Prefer standard C++20 `<bit>` first; fall back to compiler intrinsics; use raw arithmetic/bitwise identities when they simplify codegen. Do not copy from the site verbatim; apply the techniques idiomatically in modern C++.
+- Counting bits:
+  - Prefer `std::popcount(x)` over loops. Fallback: Kernighan (`for (t = x; t; ++c) t &= (t - 1);`).
+- Trailing/leading zeros:
+  - `std::countr_zero(x)`, `std::countl_zero(x)` (non-zero precondition in hot paths). Intrinsics: `__builtin_ctzll`, `__builtin_clzll`.
+- Lowest/highest set bit:
+  - Isolate lowest: `x & -x` (two’s complement). Clear lowest: `x & (x - 1)`.
+  - Index of lowest: `std::countr_zero(x)`. Index of highest: `std::bit_width(x) - 1` (or `63 - __builtin_clzll(x)`).
+- Power of two / rounding:
+  - Is power of two: `x && !(x & (x - 1))`.
+  - Round up to next power of two: `std::bit_ceil(x)` (or spread/shift sequence when unavailable).
+- Word/byte reversal:
+  - Prefer intrinsics: `__builtin_bswap64/32`; use `std::byteswap` when available.
+- Parity:
+  - `std::popcount(x) & 1` or xor-folding if not available.
+- Branchless min/max/select:
+  - Use arithmetic/bitwise forms (`a ^ ((a ^ b) & -(a < b))`) when they measure faster on target data; otherwise keep predictable branches.
+- Intra-word k-th set bit (select):
+  - If BMI2: `idx = std::countr_zero(_pdep_u64(1ull << k, word));` else clear k lows then `idx = std::countr_zero(word);`.
+- Scans over sets:
+  - Iterate set bits: `for (t = x; t; t &= (t - 1)) { i = countr_zero(t); … }`.
+- Subset iteration within a mask:
+  - `for (s = sub; s; s = (s - 1) & sub) { … }`.
+- Bitfield compress/expand (BMI2):
+  - Prefer `PEXT/PDEP` when available for masked gather/scatter; otherwise use shifts/mults.
+- Multiplication/division by constants:
+  - Replace with shifts/adds where codegen is better; verify with compiler output.
+- Endianness-sensitive ops:
+  - Keep ops endian-agnostic or isolate byte-order conversions behind intrinsics.
+- General guidance:
+  - Prefer hardware intrinsics (`POPCNT`, `LZCNT/TZCNT`, `PEXT/PDEP`) with `-march=native`. Guard with feature macros; provide efficient fallbacks. Keep hot paths branchless and rely on documented preconditions.

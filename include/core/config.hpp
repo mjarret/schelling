@@ -1,63 +1,58 @@
+// config.hpp
 #pragma once
-
-#include <cstddef>
 #include <cstdint>
-#include <type_traits>
 
-/**
- * @file core/config.hpp
- * @brief Common type aliases and compile-time constraints for Schelling code.
- */
+// Compile-time configuration for core facilities.
+//
+// Bitset backend selection is currently plf::bitset with configurable
+// storage word type and hardened mode. Extend here if additional
+// backends are added later.
 
-/**
- * @brief Global index type for vertices.
- */
-#ifndef SCHELLING_INDEX_T
-using index_t = std::size_t;
-#else
-using index_t = SCHELLING_INDEX_T;
+#ifndef CORE_BITSET_WORD_T
+#define CORE_BITSET_WORD_T std::uint64_t
 #endif
 
-/**
- * @brief Minimal-width color index type for compile-time K.
- */
-template <std::uint64_t K>
-using color_index_for = std::conditional_t<(K <= 0xFFull),  std::uint8_t,
-                          std::conditional_t<(K <= 0xFFFFull), std::uint16_t,
-                          std::conditional_t<(K <= 0xFFFFFFFFull), std::uint32_t,
-                          std::uint64_t>>>;
-
-/**
- * @brief Runtime color index type.
- */
-#ifndef SCHELLING_COLOR_INDEX_T
-using color_index_t = std::uint32_t;
-#else
-using color_index_t = SCHELLING_COLOR_INDEX_T;
+#ifndef CORE_BITSET_HARDENED
+#define CORE_BITSET_HARDENED false
 #endif
 
-/**
- * @brief Count type for color populations and denominators.
- */
-#ifndef SCHELLING_COLOR_COUNT_T
-using color_count_t = std::uint64_t;
-#else
-using color_count_t = SCHELLING_COLOR_COUNT_T;
+
+// Global hardening switch for optional runtime assertions in debug/testing code.
+// Set via compile flag: -DCORE_HARDENED=1
+#ifndef CORE_HARDENED
+#define CORE_HARDENED 0
 #endif
 
-/**
- * @brief Type for frustration/penalty tallies.
- */
-#ifndef SCHELLING_FRUSTRATION_T
-using frustration_t = std::uint64_t;
+#if CORE_HARDENED
+#include <stdexcept>
+#define CORE_ASSERT_H(cond, msg) do { if(!(cond)) throw std::runtime_error(msg); } while(0)
 #else
-using frustration_t = SCHELLING_FRUSTRATION_T;
+#define CORE_ASSERT_H(cond, msg) do { } while(0)
 #endif
 
-// Compile-time constraints: unsigned and non-narrowing relationships.
-static_assert(std::is_unsigned_v<index_t>, "index_t must be an unsigned integral type");
-static_assert(std::is_unsigned_v<color_index_t>, "color_index_t must be an unsigned integral type");
-static_assert(std::is_unsigned_v<color_count_t>, "color_count_t must be an unsigned integral type");
-static_assert(std::is_unsigned_v<frustration_t>, "frustration_t must be an unsigned integral type");
-static_assert(sizeof(color_count_t) >= sizeof(index_t), "color_count_t should be wide enough to hold vertex counts");
-static_assert(sizeof(frustration_t) >= sizeof(color_count_t), "frustration_t should be >= color_count_t width");
+// Default color/count type for Schelling counts and related combinatorics.
+#ifndef CORE_COLOR_COUNT_T
+#define CORE_COLOR_COUNT_T std::uint64_t
+#endif
+// color_count_t is used widely in core and callers; keep a global alias
+// for compatibility and also provide a namespaced alias.
+using color_count_t = CORE_COLOR_COUNT_T;
+namespace core { using color_count_t = ::color_count_t; }
+
+// Lightweight ANSI color tokens for optional debug/printing.
+// Keep simple pointers to string literals to avoid extra headers.
+namespace core { namespace config {
+inline constexpr const char* col0  = "\x1b[34m"; // blue for color 0
+inline constexpr const char* col1  = "\x1b[31m"; // red  for color 1
+inline constexpr const char* reset = "\x1b[0m";  // reset
+} }
+
+// Test macro fallbacks (doctest) for non-test builds
+#ifndef DOCTEST_VERSION
+#ifndef CAPTURE
+#define CAPTURE(x) do { } while(0)
+#endif
+#ifndef REQUIRE
+#define REQUIRE(x) do { } while(0)
+#endif
+#endif

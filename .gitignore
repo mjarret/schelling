@@ -1,0 +1,22 @@
+# Build directories (out-of-tree CMake builds)
+/build/
+/scratch_build/
+/cmake-build-*/
+
+# Generated files
+compile_commands.json
+
+# Compiled artifacts (safety net if generated at repo root)
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+
+# IDE metadata
+/.idea/
+/.vscode/
+
