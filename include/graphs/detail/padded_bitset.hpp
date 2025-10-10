@@ -30,7 +30,18 @@ class PaddedBitset {
     friend class PaddedBitset;
 
 public:
-    PaddedBitset() noexcept = default;
+    PaddedBitset() noexcept {
+        // Ensure a fully zero-initialized backing store, then establish
+        // sentinel padding and an accurate count cache.
+        constexpr std::size_t word_bits = sizeof(CORE_BITSET_WORD_T) * 8;
+        constexpr std::size_t word_count = (B + 2 * Padding + word_bits - 1) / word_bits;
+        if constexpr (word_count != 0) {
+            std::memset(data_.data(), 0, word_count * sizeof(CORE_BITSET_WORD_T));
+        }
+        apply_sentinels();
+        update_count_cache();
+        padding_ones_left = 0;
+    }
 
     explicit PaddedBitset(const core::bitset<B>& bs) noexcept {
         data_ = bs;            // cross-size assignment supported by backend
@@ -67,11 +78,20 @@ public:
         update_count_cache();
     }
 
-    inline bool operator[](std::size_t idx) const noexcept { return data_[idx + Padding]; }
+    inline std::size_t map_index_(std::size_t idx) const noexcept {
+        if constexpr (Padding != 0) {
+            if (idx == static_cast<std::size_t>(-1)) {
+                return Padding - 1; // map logical -1 to left padding guard
+            }
+        }
+        return idx + Padding;
+    }
+
+    inline bool operator[](std::size_t idx) const noexcept { return data_[map_index_(idx)]; }
     // Equality operators are intentionally omitted to keep the surface minimal; compare raw() if needed in tests.
 
     inline void reset(std::size_t idx) noexcept {
-        const std::size_t raw = idx + Padding;
+        const std::size_t raw = map_index_(idx);
         if (raw >= Padding && raw < Padding + B) {   // inside active window
             count_cache_ -= data_[raw];
         } else {
@@ -81,7 +101,7 @@ public:
     }
 
     inline void set(std::size_t idx) noexcept {
-        const std::size_t raw = idx + Padding;
+        const std::size_t raw = map_index_(idx);
         if (raw >= Padding && raw < Padding + B) {   // inside active window
             count_cache_ += !data_[raw];
         } else {

@@ -41,6 +41,9 @@ else
 endif
 
 LP_SRCS := src/main.cpp src/cli/cli.cpp src/jit/jit.cpp
+ifeq ($(MATPLOT),1)
+  LP_SRCS += src/shims/nodesoup_stubs.cpp
+endif
 LP_BIN := lollipop
 
 # Google Benchmark target (requires libbenchmark installed)
@@ -59,6 +62,26 @@ debug: MODE := debug
 debug: $(LP_BIN)
 
 DL_LIBS ?= -ldl
+
+# Optional Matplot++ integration (disabled by default)
+# Enable with: make MATPLOT=1 [MATPLOT_LIBS='-lmatplot']
+MATPLOT ?= 0
+MATPLOT_LIBS ?= -lmatplot -lnodesoup
+ifeq ($(MATPLOT),1)
+  CXXFLAGS_COMMON += -DIO_USE_MATPLOT
+  ifneq (,$(strip $(MATPLOT_LIBS)))
+    DL_LIBS += $(MATPLOT_LIBS)
+  endif
+endif
+
+# Some Matplot++ builds are instrumented with ASan/UBSan. If linking fails
+# with __asan/__ubsan symbols, rebuild with MATPLOT_SAN=1 to link sanitizers.
+MATPLOT_SAN ?= 0
+ifeq ($(MATPLOT_SAN),1)
+  CXXFLAGS_RELEASE += -fsanitize=address,undefined
+  CXXFLAGS_DEBUG   += -fsanitize=address,undefined
+  DL_LIBS += -fsanitize=address,undefined
+endif
 
 $(LP_BIN): $(LP_SRCS)
 	$(CXX) $(CXXFLAGS_COMMON) $(CXXFLAGS_SELECTED) $(LP_SRCS) -o $@ $(DL_LIBS)

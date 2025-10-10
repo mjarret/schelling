@@ -54,13 +54,9 @@ int main(int argc, char** argv) {
     const double density = opt.agent_density;
 
     // Job handler configuration:
-    // - jobs and threads optionally taken from env (JOBS / OMP_NUM_THREADS) to keep this file self-contained.
-    //   If your cli::Options already provides these, feel free to replace the env reads with opt.*.
-    std::size_t jobs = 1000;
-    if (const char* ej = std::getenv("JOBS")) {
-        unsigned long long v = std::strtoull(ej, nullptr, 10);
-        if (v > 0) jobs = static_cast<std::size_t>(v);
-    }
+    // - jobs taken from CLI (--experiments)
+    // - threads optionally from env (OMP_NUM_THREADS) or default to max
+    const std::size_t jobs = opt.experiments;
     int threads = 0; // 0 -> omp_get_max_threads()
     if (const char* et = std::getenv("OMP_NUM_THREADS")) {
         int v = std::atoi(et);
@@ -78,7 +74,8 @@ int main(int argc, char** argv) {
     core::Xoshiro256ss master_rng(seed);
 
     // Progress callback (prints ~100 updates max)
-    const std::size_t tick_every = std::max<std::size_t>(1, cfg.jobs / 100);
+    // Print progress at most once every 10,000 experiments to reduce overhead
+    const std::size_t tick_every = 10000;
     auto on_progress = [tick_every](std::size_t done, std::size_t total) {
         if (done == total || (done % tick_every) == 0) {
             double pct = (100.0 * static_cast<double>(done)) / static_cast<double>(total);
@@ -106,11 +103,12 @@ int main(int argc, char** argv) {
     // Convert (if you have the streamed sparse form)
     // sim::Heatmap hm = sim::to_dense(sparse, bins);
 
-    // Write an image you can open anywhere
+    // Write a simple PPM image (no external deps)
     io::write_heatmap_ppm(hm, "heatmap.ppm", /*scale=*/2, /*log_scale=*/true);
 
-    // (Optional) quick terminal preview
-    io::plot_heatmap_matplot(hm);
+    // Also render via gnuplot if available (labels included). x=Step, y=Unhappy Count
+    io::plot_heatmap_gnuplot(hm, out_csv, std::filesystem::path{"heatmap.png"}, /*scale=*/2,
+                             "Schelling Heatmap", "Step", "Unhappy Count");
 
     // Best-effort cleanup of any legacy JIT cache directory (harmless if absent)
     try {

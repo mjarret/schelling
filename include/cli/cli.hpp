@@ -20,7 +20,9 @@ struct Options {
 
     // Agent density in [0,1] (default set)
     double agent_density = 0.8;
-
+    // Number of experiments to run (default set)
+    std::size_t experiments = 1000;
+    
     // Optional maximum simulation steps; nullopt => ∞ (no cap)
     std::optional<std::size_t> max_steps;
 };

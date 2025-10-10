@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
-#include <unordered_map>
 #include <atomic>
 #include <algorithm>
 #include <omp.h>
@@ -22,22 +21,28 @@ struct JobConfig {
     int         threads{0};   // 0 -> omp_get_max_threads()
 };
 
-// ---------- Result type ----------
-using StepHist  = std::unordered_map<std::size_t, std::uint64_t>; // bin -> count
-using StepHists = std::vector<StepHist>;                           // step -> histogram
+// ---------- Result type (dense rows) ----------
+// For performance, accumulate per-step counts into dense rows of length `bins`.
+// Bins are known at run time (Graph::TotalSize + 1) and small in our targets.
+using StepDense  = std::vector<std::vector<std::uint64_t>>; // step -> row (bins length)
 
-// Merge helper (used by OpenMP to reduce thread‑local partials)
-inline void merge_step_hists(StepHists& dst, const StepHists& src) {
+// Merge helper (used by OpenMP to reduce thread‑local partials) — assumes rows
+// are either empty or sized to `bins` consistently across threads.
+inline void merge_step_dense(StepDense& dst, const StepDense& src) {
     if (src.size() > dst.size()) dst.resize(src.size());
     for (std::size_t s = 0; s < src.size(); ++s) {
-        auto& d = dst[s];
-        for (const auto& [u, c] : src[s]) d[u] += c;
+        const auto& sr = src[s];
+        if (sr.empty()) continue;
+        auto& dr = dst[s];
+        if (dr.empty()) { dr = sr; continue; }
+        const std::size_t B = dr.size();
+        for (std::size_t j = 0; j < B; ++j) dr[j] += sr[j];
     }
 }
 
-// Declare a custom OpenMP reduction for StepHists
-#pragma omp declare reduction (merge_step_hists : sim::StepHists : \
-    sim::merge_step_hists(omp_out, omp_in)) initializer(omp_priv = sim::StepHists{})
+// Declare a custom OpenMP reduction for StepDense
+#pragma omp declare reduction (merge_step_dense : sim::StepDense : \
+    sim::merge_step_dense(omp_out, omp_in)) initializer(omp_priv = sim::StepDense{})
 
 // Optional: convert to dense if you need a matrix later
 struct Heatmap {
@@ -45,13 +50,14 @@ struct Heatmap {
     std::size_t rows{0};
     std::vector<std::uint64_t> data; // row-major rows × bins
 };
-inline Heatmap to_dense(const StepHists& sparse, std::size_t bins) {
-    Heatmap out; out.bins = bins; out.rows = sparse.size();
+inline Heatmap to_dense(const StepDense& dense, std::size_t bins) {
+    Heatmap out; out.bins = bins; out.rows = dense.size();
     out.data.assign(out.rows * out.bins, 0ull);
     for (std::size_t r = 0; r < out.rows; ++r) {
-        const auto& row = sparse[r];
-        auto* dst = out.data.data() + r * out.bins;
-        for (const auto& [u, c] : row) dst[u] += c;
+        const auto& row = dense[r];
+        if (row.empty()) continue;
+        std::copy(row.begin(), row.begin() + std::min<std::size_t>(row.size(), out.bins),
+                  out.data.begin() + static_cast<std::ptrdiff_t>(r * out.bins));
     }
     return out;
 }
@@ -60,7 +66,7 @@ inline Heatmap to_dense(const StepHists& sparse, std::size_t bins) {
 // ProgressCb: void(std::size_t done, std::size_t total)
 template <class Graph, class SeedRng, class ProgressCb>
     requires GraphLike<Graph, SeedRng>
-inline StepHists
+inline StepDense
 run_jobs_heatmap_streamed(const JobConfig& cfg_in, SeedRng& master_rng, ProgressCb&& on_progress) {
     const std::size_t J = (cfg_in.jobs == 0) ? 1 : cfg_in.jobs;
     const int NT        = (cfg_in.threads > 0) ? cfg_in.threads : omp_get_max_threads();
@@ -72,9 +78,9 @@ run_jobs_heatmap_streamed(const JobConfig& cfg_in, SeedRng& master_rng, Progress
 
     std::atomic<std::size_t> done{0};
 
-    StepHists result; // OpenMP gives each thread a private copy (via reduction)
+    StepDense result; // OpenMP gives each thread a private copy (via reduction)
 
-    #pragma omp parallel for schedule(static) num_threads(NT) reduction(merge_step_hists: result)
+    #pragma omp parallel for schedule(static) num_threads(NT) reduction(merge_step_dense: result)
     for (std::ptrdiff_t j = 0; j < static_cast<std::ptrdiff_t>(J); ++j) {
         core::Xoshiro256ss rng(seeds[static_cast<std::size_t>(j)]);
         Graph g;
@@ -85,7 +91,9 @@ run_jobs_heatmap_streamed(const JobConfig& cfg_in, SeedRng& master_rng, Progress
                 std::size_t u = static_cast<std::size_t>(unhappy);
                 if (u >= bins) u = bins - 1;          // defensive clamp
                 if (s >= result.size()) result.resize(s + 1);
-                result[s][u] += 1ull;                 // thread‑local (no locks)
+                auto& row = result[s];
+                if (row.empty()) row.assign(bins, 0ull);
+                row[u] += 1ull;                        // thread‑local (no locks)
             });
 
         const std::size_t now = done.fetch_add(1, std::memory_order_relaxed) + 1;
