@@ -44,6 +44,5 @@ Performance Notes
 - Build defaults: `-O3 -march=native -DNDEBUG` (debug builds keep `-g3`).
 
 License
-- This repository is licensed under a restrictive George Mason University license. See `LICENSE`.
+- This repository is proprietary (All rights reserved). See `LICENSE` for terms.
 - Author of this version: Michael Jarret (mjarretb@gmu.edu).
-
