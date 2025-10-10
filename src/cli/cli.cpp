@@ -3,7 +3,6 @@
 #include "cli/cli.hpp"
 
 #include <cxxopts.hpp>
-
 #include <charconv>
 #include <cstdlib>
 #include <string>
@@ -33,34 +32,29 @@ Options parse_args(int argc, char** argv, bool& want_help, std::string& help_tex
     Options opt;
     want_help = false;
 
-    std::string tau_s;      // p/q or decimal
-    double agent_density_val = 0.8; // default; overridden if provided
+    std::string tau_s;        // p/q or decimal
+    std::string density_s;    // p/q or decimal for agent density
+    double agent_density_val = 0.8; // final parsed value
     std::size_t max_steps_val = 0;  // if present -> set; absent -> ∞
 
     cxxopts::Options desc("lollipop", "Schelling Lollipop Options");
     // register with defaults where applicable (cxxopts API: spec, desc, value)
     desc.add_options()
         ("h,help", "Show this help")
-        ("t,tau", "Threshold tau as p/q or decimal (double/float)", cxxopts::value<std::string>(tau_s))
-        ("p", "Numerator p for tau=p/q", cxxopts::value<std::uint64_t>(opt.p)->default_value("1"))
-        ("q", "Denominator q for tau=p/q (nonzero)", cxxopts::value<std::uint64_t>(opt.q)->default_value("2"))
+        ("t,tau", "Threshold tau as p/q or decimal", cxxopts::value<std::string>(tau_s))
         ("clique-size", "Clique size (compiled combos)", cxxopts::value<std::size_t>(opt.clique_size)->default_value("50"))
         ("path-length", "Path length (compiled combos)", cxxopts::value<std::size_t>(opt.path_length)->default_value("450"))
-        ("d,agent-density", "Agent density in [0,1]", cxxopts::value<double>(agent_density_val)->default_value("0.8"))
+        ("d,agent-density", "Agent density in [0,1] as p/q or decimal", cxxopts::value<std::string>(density_s)->default_value("0.8"))
         ("m,max-steps", "Maximum steps per experiment (default ∞)", cxxopts::value<std::size_t>(max_steps_val))
     ;
     help_text = desc.help();
     auto result = desc.parse(argc, argv);
     if (result.count("help")) { want_help = true; return opt; }
 
-    // Apply p/q overrides if explicitly provided (not defaults)
-    if (result.count("p")) { opt.pq_overridden = true; }
-    if (result.count("q")) { opt.pq_overridden = true; }
-
-    // Parse tau string if provided (unless p/q explicitly override)
-    if (!tau_s.empty() && !opt.pq_overridden) {
+    // Parse tau: accept p/q or decimal; default to 1/2 if not provided
+    if (!tau_s.empty()) {
         if (auto pq = parse_pq(std::string_view(tau_s))) {
-            opt.p = pq->first; opt.q = pq->second; opt.pq_overridden = true;
+            opt.p = pq->first; opt.q = pq->second;
         } else {
             if (!tau_s.empty() && (tau_s.back()=='f' || tau_s.back()=='F')) tau_s.pop_back();
             char* endp = nullptr;
@@ -70,7 +64,6 @@ Options parse_args(int argc, char** argv, bool& want_help, std::string& help_tex
                 else if (tau >= 1.0) { opt.p = 1; opt.q = 1; }
                 else { opt.q = 1000000ULL; opt.p = static_cast<std::uint64_t>(std::llround(tau * static_cast<double>(opt.q))); }
                 if (opt.q == 0) opt.q = 1;
-                opt.pq_overridden = true;
             } else {
                 std::cerr << "Invalid --tau value; expected p/q or decimal.\n";
                 want_help = true;
@@ -79,7 +72,25 @@ Options parse_args(int argc, char** argv, bool& want_help, std::string& help_tex
         }
     }
 
-    // Agent density always set (has a default in parser)
+    // Parse agent density: accept p/q or decimal; clamp to [0,1]
+    if (!density_s.empty()) {
+        if (auto pq = parse_pq(std::string_view(density_s))) {
+            // convert to double safely
+            agent_density_val = (pq->second == 0) ? 0.0 : static_cast<double>(pq->first) / static_cast<double>(pq->second);
+        } else {
+            char* endp = nullptr;
+            double d = std::strtod(density_s.c_str(), &endp);
+            if (endp && *endp == '\0') {
+                agent_density_val = d;
+            } else {
+                std::cerr << "Invalid --agent-density; expected p/q or decimal.\n";
+                want_help = true;
+                return opt;
+            }
+        }
+    }
+    if (agent_density_val < 0.0) agent_density_val = 0.0;
+    if (agent_density_val > 1.0) agent_density_val = 1.0;
     opt.agent_density = agent_density_val;
 
     // Optional max steps: set only if provided
