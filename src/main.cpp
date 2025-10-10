@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <iostream>
 #include <cstdlib>
+#include <filesystem>
 
 #include "graphs/lollipop.hpp"
 #include "core/rng.hpp"
@@ -37,5 +38,14 @@ int main(int argc, char** argv) {
     const double density = opt.agent_density.has_value() ? *opt.agent_density : 0.8;
 
     // Compile-and-run specialized LollipopGraph at requested sizes
-    return run_once_jit(opt.clique_size, opt.path_length, opt.p, opt.q, density);
+    int rc = run_once_jit(opt.clique_size, opt.path_length, opt.p, opt.q, density);
+    if (rc == 0) {
+        // On successful completion, remove JIT cache directory
+        try {
+            std::filesystem::remove_all("_jit");
+        } catch (...) {
+            // Best-effort cleanup; ignore failures
+        }
+    }
+    return rc;
 }
