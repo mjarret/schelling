@@ -2,6 +2,7 @@ cff-version: 1.2.0
 message: If you use this software, please cite it as follows.
 title: Schelling — High-Performance Experiments
 type: software
+version: 0.01
 authors:
   - family-names: Jarret
     given-names: Michael
