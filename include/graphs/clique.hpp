@@ -1,10 +1,10 @@
 #pragma once
 
 #include <optional>
-#include <limits>
 #include <random>
 #include <utility>
 
+#include "core/rng.hpp"
 #include "core/bitset.hpp"
 #include "core/config.hpp"
 #include "core/schelling_threshold.hpp"

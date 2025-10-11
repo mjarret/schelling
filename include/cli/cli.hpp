@@ -12,7 +12,6 @@ struct Options {
     // Schelling threshold as p/q (defaults to 1/2)
     std::uint64_t p = 1;
     std::uint64_t q = 2;
-    bool pq_overridden = false;
 
     // Graph size (Lollipop) with defaults
     std::size_t clique_size = 50;

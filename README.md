@@ -43,6 +43,12 @@ Performance Notes
 - Prefer branchless formulations and arithmetic identities when it improves throughput.
 - Build defaults: `-O3 -march=native -DNDEBUG` (debug builds keep `-g3`).
 
+**How to Cite**
+- Recommended citation:
+  - Jarret, M. (2025). Schelling — High-Performance C++20 Experiments. George Mason University. https://github.com/mjarret/schelling
+- Machine-readable metadata is provided in `CITATION.cff` (GitHub shows a “Cite this repository” button).
+- ORCID: 0000-0003-4061-3509
+
 License
 - This repository is proprietary (All rights reserved). See `LICENSE` for terms.
 - Author of this version: Michael Jarret (mjarretb@gmu.edu).

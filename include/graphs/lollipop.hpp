@@ -2,9 +2,8 @@
 #pragma once
 
 #include <cstddef>
-#include <random>
-#include <limits>
-#include <limits>
+#include <cstdint>
+#include "core/rng.hpp"
 #include "core/schelling_threshold.hpp"
 #include "graphs/clique.hpp"
 #include "graphs/path.hpp"
@@ -44,10 +43,10 @@ public:
     // Uniformly sample an unhappy vertex index over the lollipop graph
     template<class Rng>
     inline size_t get_unhappy(Rng& rng) const {
-        double c_unhappy = clique_.unhappy_count();
-        double p_unhappy = path_.unhappy_count();
-        double explicit_bridge_unhappy = bridge_unhappy() != bridge_unhappy_in_clique_sense_(); // 1 iff bridge differs
-        int pick = std::discrete_distribution<int>({c_unhappy, p_unhappy, explicit_bridge_unhappy})(rng);
+        const std::uint64_t w0 = static_cast<std::uint64_t>(clique_.unhappy_count());
+        const std::uint64_t w1 = static_cast<std::uint64_t>(path_.unhappy_count());
+        const std::uint64_t w2 = static_cast<std::uint64_t>(bridge_unhappy() != bridge_unhappy_in_clique_sense_());
+        const int pick = core::weighted_pick3(rng, w0, w1, w2);
         if (pick == 0) return clique_.get_unhappy(rng).value();
         if (pick == 1) return path_.get_unhappy(rng) + PathBase;
         return bridge_index_();
@@ -56,10 +55,9 @@ public:
     // Uniformly sample an unoccupied vertex (correctly deduplicating the bridge)
     template<class Rng>
     inline size_t get_unoccupied(Rng& rng) const {
-        double c_unocc = clique_.count_by_color(std::nullopt);
-        double p_unocc = path_.count_by_color(std::nullopt);
-        std::discrete_distribution<int> pick({c_unocc, p_unocc});
-        int side = pick(rng);
+        const std::uint64_t w0 = static_cast<std::uint64_t>(clique_.count_by_color(std::nullopt));
+        const std::uint64_t w1 = static_cast<std::uint64_t>(path_.count_by_color(std::nullopt));
+        const int side = core::weighted_pick2(rng, w0, w1);
         return side ? (path_.get_unoccupied(rng) + PathBase) : clique_.get_unoccupied(rng);
     }
 

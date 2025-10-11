@@ -62,6 +62,15 @@ debug: MODE := debug
 debug: $(LP_BIN)
 
 DL_LIBS ?= -ldl
+LDFLAGS ?=
+
+# Profiling (gprof) toggle. When PROFILE=1, build with -pg.
+PROFILE ?= 0
+ifeq ($(PROFILE),1)
+  # Enable gprof instrumentation and disable PIE to improve attribution
+  CXXFLAGS_COMMON += -pg -fno-pie
+  LDFLAGS += -pg -no-pie
+endif
 
 # Optional Matplot++ integration (disabled by default)
 # Enable with: make MATPLOT=1 [MATPLOT_LIBS='-lmatplot']
@@ -84,7 +93,7 @@ ifeq ($(MATPLOT_SAN),1)
 endif
 
 $(LP_BIN): $(LP_SRCS)
-	$(CXX) $(CXXFLAGS_COMMON) $(CXXFLAGS_SELECTED) $(LP_SRCS) -o $@ $(DL_LIBS)
+	$(CXX) $(CXXFLAGS_COMMON) $(CXXFLAGS_SELECTED) $(LDFLAGS) $(LP_SRCS) -o $@ $(DL_LIBS)
 
 
 run: $(LP_BIN)
@@ -93,7 +102,7 @@ run: $(LP_BIN)
 bench: $(BENCH_BIN)
 
 $(BENCH_BIN): $(BENCH_SRC)
-	$(CXX) $(CXXFLAGS_COMMON) $(CXXFLAGS_SELECTED) $< -o $@ $(GBENCH_LIBS)
+	$(CXX) $(CXXFLAGS_COMMON) $(CXXFLAGS_SELECTED) $(LDFLAGS) $< -o $@ $(GBENCH_LIBS)
 
 clean:
 	rm -f $(LP_BIN) *.o
@@ -115,8 +124,14 @@ help:
 	@echo "  all (default)   -> build lollipop";
 	@echo "  release         -> build lollipop with Release flags";
 	@echo "  debug           -> build lollipop with Debug flags";
+	@echo "  profile         -> build with -pg enabled for gprof";
 	@echo "  run             -> run lollipop after build";
 	@echo "  bench           -> build lollipop_bench (Google Benchmark)";
 	@echo "  clean           -> remove built binaries and *.o";
 	@echo "  purge           -> clean + remove common CMake artifacts";
 	@echo "  print-flags     -> display current compiler flags";
+
+.PHONY: profile
+profile: PROFILE := 1
+profile: MODE := release
+profile: $(LP_BIN)

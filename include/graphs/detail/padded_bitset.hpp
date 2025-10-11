@@ -14,9 +14,8 @@
 
 #include <cstddef>
 #include <cstring>
-#include <random>
 #include <type_traits>
-
+#include "core/rng.hpp"
 #include "core/bitset.hpp"
 #include "core/config.hpp"
 
@@ -102,7 +101,7 @@ public:
 
     inline void set(std::size_t idx) noexcept {
         const std::size_t raw = map_index_(idx);
-        if (raw >= Padding && raw < Padding + B) {   // inside active window
+        if (raw >= Padding && raw < Padding + B) [[likely]] {   // inside active window
             count_cache_ += !data_[raw];
         } else {
             padding_ones_left += !data_[raw];

@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it as follows.
+title: Schelling — High-Performance Experiments
+type: software
+authors:
+  - family-names: Jarret
+    given-names: Michael
+    email: mjarretb@gmu.edu
+    orcid: https://orcid.org/0000-0003-4061-3509
+    affiliation:
+      - Department of Mathematical Sciences, George Mason University
+      - Department of Computer Science, George Mason University
+      - Quantum Science and Engineering Center, George Mason University
+      - Center for Social Complexity, George Mason University
+date-released: 2025-10-11
+repository-code: https://github.com/mjarret/schelling
+license: other
+keywords:
+  - Schelling
+  - agent-based modelling
+  - graph algorithms
+  - C++20
+  - high performance
+contact:
+  - name: Michael Jarret
+    email: mjarretb@gmu.edu
+preferred-citation:
+  type: software
+  title: Schelling — High-Performance Experiments
+  authors:
+    - family-names: Jarret
+      given-names: Michael
+      orcid: https://orcid.org/0000-0003-4061-3509
+  institution: George Mason University
+  year: 2025
+  url: https://github.com/mjarret/schelling
+contributors: []

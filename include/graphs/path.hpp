@@ -12,7 +12,6 @@
 #pragma once
 #include <cstdint>
 #include <optional>
-#include <random>
 #include <limits>
 
 #include "core/bitset.hpp"
@@ -116,20 +115,22 @@ public:
  private:
     padded_bitset occ_, col_, unhappy_mask_cache_;
 
-    uint8_t local_frustration(size_t v) const { return (disagree_right(v) + disagree_left(v)); }
-    bool disagree_left(size_t v) const { return occ_[v] && occ_[v-1] && (col_[v] != col_[v-1]); }
-    bool disagree_right(size_t v) const { return occ_[v] && occ_[v+1] && (col_[v] != col_[v+1]); }
-    uint8_t neighbors(size_t v) const { return static_cast<uint8_t>(occ_[v-1]) + static_cast<uint8_t>(occ_[v+1]); }
+    inline uint8_t local_frustration(const size_t v) const { return (disagree_right(v) + disagree_left(v)); }
+    inline bool disagree_left(const size_t v) const { return occ_[v] && occ_[v-1] && (col_[v] != col_[v-1]); }
+    inline bool disagree_right(const size_t v) const { return occ_[v] && occ_[v+1] && (col_[v] != col_[v+1]); }
+    inline uint_fast8_t neighbors(const size_t v) const { return occ_[v-1] + occ_[v+1]; }
 
     // Only called for idx <= B-1
-    void local_unhappy_reset(size_t idx) {
+    void local_unhappy_reset(const size_t idx) {
         unhappy_mask_cache_.reset(idx-1);
         unhappy_mask_cache_.reset(idx);
         unhappy_mask_cache_.reset(idx+1);
     }
 
     // Update cached mask over window [idx-1, idx, idx+1].
-    void local_unhappy_update(size_t idx) {
+    void local_unhappy_update(const size_t idx) {
+        // TODO Optimize this function by noting we only need to check minority/majority cases
+        // in the 3-cell window, not full unhappy_mask_() recompute.
         if(is_unhappy(idx-1))  unhappy_mask_cache_.set(idx-1);
         if(is_unhappy(idx))    unhappy_mask_cache_.set(idx);
         if(is_unhappy(idx+1))  unhappy_mask_cache_.set(idx+1);

@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 
 #include "third_party/splitmix64.hpp"
 #include "third_party/xoshiro256ss.hpp"
@@ -43,5 +44,41 @@ inline std::uint64_t splitmix_hash(std::uint64_t x) {
     return sm.next();
 }
 
-} // namespace core
+// ---------------- Random utilities (integer-threshold selection) ----------------
 
+// Unbiased mapping of a 64-bit URBG output to [0, n) using Lemire's
+// multiply-high method with a tiny rejection loop. Works for any URBG
+// that provides operator() returning a 64-bit value.
+template <class URBG>
+inline std::uint64_t uniform_bounded(URBG& rng, std::uint64_t n) noexcept {
+    using u128 = unsigned __int128;
+    std::uint64_t x = rng();
+    u128 m = (u128)x * (u128)n;
+    std::uint64_t l = (std::uint64_t)m;
+    if (l < n) {
+        const std::uint64_t t = (-n) % n;
+        while (l < t) { x = rng(); m = (u128)x * (u128)n; l = (std::uint64_t)m; }
+    }
+    return (std::uint64_t)(m >> 64);
+}
+
+// Two-way weighted pick: returns 0 with probability w0/(w0+w1), else 1.
+// Preconditions: w0+w1 > 0.
+template <class URBG>
+inline int weighted_pick2(URBG& rng, std::uint64_t w0, std::uint64_t w1) noexcept {
+    const std::uint64_t total = w0 + w1;
+    const std::uint64_t t = uniform_bounded(rng, total);
+    return (t < w0) ? 0 : 1;
+}
+
+// Three-way weighted pick: returns {0,1,2} according to integer weights.
+// Preconditions: w0+w1+w2 > 0.
+template <class URBG>
+inline int weighted_pick3(URBG& rng, std::uint64_t w0, std::uint64_t w1, std::uint64_t w2) noexcept {
+    const std::uint64_t total = w0 + w1 + w2;
+    const std::uint64_t t = uniform_bounded(rng, total);
+    return (t < w0) ? 0 : ((t < (w0 + w1)) ? 1 : 2);
+}
+
+
+} // namespace core
