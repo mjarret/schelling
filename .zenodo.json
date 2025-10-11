@@ -1,0 +1,36 @@
+{
+  "title": "Schelling — High-Performance C++20 Experiments",
+  "upload_type": "software",
+  "publication_date": "2025-10-11",
+  "version": "0.01",
+  "description": "High-performance C++20 implementations of Schelling segregation dynamics on structured graphs (clique, path, lollipop), with header-heavy, counts-first, branchless hot paths and optional JIT specialization.",
+  "creators": [
+    {
+      "name": "Jarret, Michael",
+      "affiliation": "George Mason University",
+      "orcid": "0000-0003-4061-3509"
+    }
+  ],
+  "contributors": [
+    { "name": "Max Makilov",   "type": "Researcher" },
+    { "name": "Ross Gore",      "type": "Researcher" },
+    { "name": "Arie Croitoru",  "type": "Researcher" },
+    { "name": "Bill Kennedy",   "type": "Researcher" },
+    { "name": "Andrew Maciejunes", "type": "Researcher" }
+  ],
+  "keywords": [
+    "Schelling",
+    "agent-based modelling",
+    "graph algorithms",
+    "C++20",
+    "high performance"
+  ],
+  "related_identifiers": [
+    {
+      "relation": "isSupplementTo",
+      "identifier": "https://github.com/mjarret/schelling"
+    }
+  ],
+  "license": "other"
+}
+
