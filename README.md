@@ -20,6 +20,13 @@ Build
   - `make bench` — Google Benchmark for the lollipop demo (source under `testing/bench`).
   - `make purge` — remove generated artifacts including `_jit/`.
 
+macOS (Apple clang) and OpenMP: Apple's clang doesn’t ship OpenMP. To build:
+
+```bash
+brew install libomp
+make
+```
+
 Run
 - Default (τ=1/2, CS=50, PL=450, density=0.8):
   - `./lollipop`
