@@ -20,6 +20,7 @@ endif
 
 OPENMP ?= auto
 OPENMP_FLAGS :=
+OPENMP_LDFLAGS :=
 ifeq ($(OPENMP),1)
   OPENMP_FLAGS := -fopenmp
 else ifeq ($(OPENMP),yes)
@@ -28,6 +29,13 @@ else ifeq ($(OPENMP),auto)
   OPENMP_PRESENT := $(shell echo 'int main(){return 0;}' | $(CXX) $(CXXFLAGS_COMMON) -fopenmp -x c++ - -o /dev/null >/dev/null 2>&1 && echo yes || echo no)
   ifeq ($(OPENMP_PRESENT),yes)
     OPENMP_FLAGS := -fopenmp
+  else
+    # macOS: check for libomp from Homebrew
+    HOMEBREW_LIBOMP := $(shell brew --prefix libomp 2>/dev/null)
+    ifneq ($(HOMEBREW_LIBOMP),)
+      OPENMP_FLAGS := -I$(HOMEBREW_LIBOMP)/include
+      OPENMP_LDFLAGS := -L$(HOMEBREW_LIBOMP)/lib -lomp
+    endif
   endif
 endif
 
@@ -93,7 +101,7 @@ ifeq ($(MATPLOT_SAN),1)
 endif
 
 $(LP_BIN): $(LP_SRCS)
-	$(CXX) $(CXXFLAGS_COMMON) $(CXXFLAGS_SELECTED) $(LDFLAGS) $(LP_SRCS) -o $@ $(DL_LIBS)
+	$(CXX) $(CXXFLAGS_COMMON) $(CXXFLAGS_SELECTED) $(LDFLAGS) $(LP_SRCS) -o $@ $(OPENMP_LDFLAGS) $(DL_LIBS)
 
 
 run: $(LP_BIN)
