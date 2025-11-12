@@ -1,0 +1,25 @@
+2025-10-30T12:19:21-04:00
+Running ./hitting_time_bench
+Run on (24 X 5737 MHz CPU s)
+CPU Caches:
+  L1 Data 32 KiB (x12)
+  L1 Instruction 32 KiB (x12)
+  L2 Unified 1024 KiB (x12)
+  L3 Unified 32768 KiB (x2)
+Load Average: 0.15, 0.18, 0.12
+***WARNING*** CPU scaling is enabled, the benchmark real time measurements may be noisy and will incur extra overhead.
+***WARNING*** Library was built as DEBUG. Timings may be affected.
+name,iterations,real_time,cpu_time,time_unit,bytes_per_second,items_per_second,label,error_occurred,error_message
+"Schelling/Lollipop/CS=50/PL=450/iterations:1000/threads:24",24000,0.0244495,0.0239461,ms,,41760.5,,,
+"Schelling/Lollipop/CS=100/PL=900/iterations:1000/threads:24",24000,0.047086,0.0464858,ms,,21511.9,,,
+"Schelling/Lollipop/CS=150/PL=1350/iterations:1000/threads:24",24000,0.0730862,0.070387,ms,,14207.2,,,
+"Schelling/Lollipop/CS=200/PL=1800/iterations:1000/threads:24",24000,0.100668,0.0968385,ms,,10326.5,,,
+"Schelling/Lollipop/CS=250/PL=2250/iterations:1000/threads:24",24000,0.148935,0.146698,ms,,6816.72,,,
+"Schelling/Lollipop/CS=300/PL=2700/iterations:1000/threads:24",24000,0.190043,0.186257,ms,,5368.94,,,
+"Schelling/Lollipop/CS=350/PL=3150/iterations:1000/threads:24",24000,0.203775,0.200865,ms,,4978.47,,,
+"Schelling/Lollipop/CS=400/PL=3600/iterations:1000/threads:24",24000,0.266898,0.263356,ms,,3797.14,,,
+"Schelling/Lollipop/CS=450/PL=4050/iterations:1000/threads:24",24000,0.315978,0.309872,ms,,3227.14,,,
+"Schelling/Lollipop/CS=500/PL=4500/iterations:1000/threads:24",24000,0.331836,0.329086,ms,,3038.72,,,
+"Schelling/Lollipop/CS=550/PL=4950/iterations:1000/threads:24",24000,0.408961,0.403339,ms,,2479.3,,,
+"Schelling/Lollipop/CS=600/PL=5400/iterations:1000/threads:24",24000,0.441062,0.438832,ms,,2278.78,,,
+"Schelling/Lollipop/CS=650/PL=5850/iterations:1000/threads:24",24000,0.495434,0.49355,ms,,2026.14,,,

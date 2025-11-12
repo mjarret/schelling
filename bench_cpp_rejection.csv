@@ -1,0 +1,62 @@
+2025-10-30T12:44:24-04:00
+Running ./hitting_time_bench
+Run on (24 X 5737 MHz CPU s)
+CPU Caches:
+  L1 Data 32 KiB (x12)
+  L1 Instruction 32 KiB (x12)
+  L2 Unified 1024 KiB (x12)
+  L3 Unified 32768 KiB (x2)
+Load Average: 0.56, 3.48, 3.09
+***WARNING*** CPU scaling is enabled, the benchmark real time measurements may be noisy and will incur extra overhead.
+***WARNING*** Library was built as DEBUG. Timings may be affected.
+name,iterations,real_time,cpu_time,time_unit,bytes_per_second,items_per_second,label,error_occurred,error_message
+"Schelling/Lollipop/CS=50/PL=450/iterations:10000/threads:24",240000,0.0261155,0.0256425,ms,,38997.8,,,
+"Schelling/Lollipop/CS=100/PL=900/iterations:10000/threads:24",240000,0.0498555,0.0491183,ms,,20359,,,
+"Schelling/Lollipop/CS=150/PL=1350/iterations:10000/threads:24",240000,0.0778482,0.0768289,ms,,13015.9,,,
+"Schelling/Lollipop/CS=200/PL=1800/iterations:10000/threads:24",240000,0.112465,0.111955,ms,,8932.13,,,
+"Schelling/Lollipop/CS=250/PL=2250/iterations:10000/threads:24",240000,0.147398,0.146327,ms,,6834.02,,,
+"Schelling/Lollipop/CS=300/PL=2700/iterations:10000/threads:24",240000,0.181957,0.180894,ms,,5528.11,,,
+"Schelling/Lollipop/CS=350/PL=3150/iterations:10000/threads:24",240000,0.218314,0.216785,ms,,4612.86,,,
+"Schelling/Lollipop/CS=400/PL=3600/iterations:10000/threads:24",240000,0.255259,0.254269,ms,,3932.84,,,
+"Schelling/Lollipop/CS=450/PL=4050/iterations:10000/threads:24",240000,0.343114,0.341049,ms,,2932.13,,,
+"Schelling/Lollipop/CS=500/PL=4500/iterations:10000/threads:24",240000,0.350457,0.349377,ms,,2862.24,,,
+"Schelling/Lollipop/CS=550/PL=4950/iterations:10000/threads:24",240000,0.42655,0.422235,ms,,2368.35,,,
+"Schelling/Lollipop/CS=600/PL=5400/iterations:10000/threads:24",240000,0.445115,0.439766,ms,,2273.94,,,
+"Schelling/Lollipop/CS=650/PL=5850/iterations:10000/threads:24",240000,0.503736,0.499385,ms,,2002.46,,,
+"Schelling/Lollipop/CS=700/PL=6300/iterations:10000/threads:24",240000,0.555703,0.549233,ms,,1820.72,,,
+"Schelling/Lollipop/CS=750/PL=6750/iterations:10000/threads:24",240000,0.594348,0.590394,ms,,1693.79,,,
+"Schelling/Lollipop/CS=800/PL=7200/iterations:10000/threads:24",240000,0.662316,0.655587,ms,,1525.35,,,
+"Schelling/Lollipop/CS=850/PL=7650/iterations:10000/threads:24",240000,0.715634,0.708896,ms,,1410.65,,,
+"Schelling/Lollipop/CS=900/PL=8100/iterations:10000/threads:24",240000,0.760863,0.756822,ms,,1321.31,,,
+"Schelling/Lollipop/CS=950/PL=8550/iterations:10000/threads:24",240000,0.797131,0.795235,ms,,1257.49,,,
+"Schelling/Lollipop/CS=1000/PL=9000/iterations:10000/threads:24",240000,0.853392,0.851436,ms,,1174.49,,,
+"Schelling/Lollipop/CS=1050/PL=9450/iterations:10000/threads:24",240000,0.893963,0.891957,ms,,1121.13,,,
+"Schelling/Lollipop/CS=1100/PL=9900/iterations:10000/threads:24",240000,0.961522,0.951024,ms,,1051.5,,,
+"Schelling/Lollipop/CS=1150/PL=10350/iterations:10000/threads:24",240000,1.00887,1.00688,ms,,993.167,,,
+"Schelling/Lollipop/CS=1200/PL=10800/iterations:10000/threads:24",240000,1.06817,1.06603,ms,,938.06,,,
+"Schelling/Lollipop/CS=1250/PL=11250/iterations:10000/threads:24",240000,1.16456,1.15769,ms,,863.791,,,
+"Schelling/Lollipop/CS=1300/PL=11700/iterations:10000/threads:24",240000,1.09749,1.09329,ms,,914.674,,,
+"Schelling/Lollipop/CS=1350/PL=12150/iterations:10000/threads:24",240000,1.15632,1.14909,ms,,870.254,,,
+"Schelling/Lollipop/CS=1400/PL=12600/iterations:10000/threads:24",240000,1.17508,1.17262,ms,,852.788,,,
+"Schelling/Lollipop/CS=1450/PL=13050/iterations:10000/threads:24",240000,1.40021,1.39719,ms,,715.72,,,
+"Schelling/Lollipop/CS=1500/PL=13500/iterations:10000/threads:24",240000,1.42847,1.42086,ms,,703.8,,,
+"Schelling/Lollipop/CS=1550/PL=13950/iterations:10000/threads:24",240000,1.49728,1.48715,ms,,672.426,,,
+"Schelling/Lollipop/CS=1600/PL=14400/iterations:10000/threads:24",240000,1.60609,1.58453,ms,,631.103,,,
+"Schelling/Lollipop/CS=1650/PL=14850/iterations:10000/threads:24",240000,1.63556,1.62985,ms,,613.555,,,
+"Schelling/Lollipop/CS=1700/PL=15300/iterations:10000/threads:24",240000,1.67368,1.66342,ms,,601.173,,,
+"Schelling/Lollipop/CS=1750/PL=15750/iterations:10000/threads:24",240000,1.72607,1.71095,ms,,584.469,,,
+"Schelling/Lollipop/CS=1800/PL=16200/iterations:10000/threads:24",240000,1.83423,1.82841,ms,,546.922,,,
+"Schelling/Lollipop/CS=1850/PL=16650/iterations:10000/threads:24",240000,1.88311,1.85603,ms,,538.785,,,
+"Schelling/Lollipop/CS=1900/PL=17100/iterations:10000/threads:24",240000,1.92952,1.90388,ms,,525.242,,,
+"Schelling/Lollipop/CS=1950/PL=17550/iterations:10000/threads:24",240000,2.00283,1.98908,ms,,502.745,,,
+"Schelling/Lollipop/CS=2000/PL=18000/iterations:10000/threads:24",240000,2.13861,2.13419,ms,,468.562,,,
+"Schelling/Lollipop/CS=2050/PL=18450/iterations:10000/threads:24",240000,2.1549,2.13441,ms,,468.514,,,
+"Schelling/Lollipop/CS=2100/PL=18900/iterations:10000/threads:24",240000,2.25255,2.22277,ms,,449.89,,,
+"Schelling/Lollipop/CS=2150/PL=19350/iterations:10000/threads:24",240000,2.30634,2.29193,ms,,436.313,,,
+"Schelling/Lollipop/CS=2200/PL=19800/iterations:10000/threads:24",240000,2.33969,2.33236,ms,,428.751,,,
+"Schelling/Lollipop/CS=2250/PL=20250/iterations:10000/threads:24",240000,2.48781,2.47587,ms,,403.899,,,
+"Schelling/Lollipop/CS=2300/PL=20700/iterations:10000/threads:24",240000,2.5045,2.49078,ms,,401.481,,,
+"Schelling/Lollipop/CS=2350/PL=21150/iterations:10000/threads:24",240000,2.56008,2.54803,ms,,392.46,,,
+"Schelling/Lollipop/CS=2400/PL=21600/iterations:10000/threads:24",240000,2.64219,2.63647,ms,,379.294,,,
+"Schelling/Lollipop/CS=2450/PL=22050/iterations:10000/threads:24",240000,2.79269,2.75518,ms,,362.953,,,
+"Schelling/Lollipop/CS=2500/PL=22500/iterations:10000/threads:24",240000,2.85341,2.79986,ms,,357.161,,,

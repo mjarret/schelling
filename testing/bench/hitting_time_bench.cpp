@@ -13,7 +13,7 @@
 
 template <std::size_t CS, std::size_t PL>
 static void BM_SchellingProcess(benchmark::State& state) {
-    const double density = 0.9;
+    const double density = 0.8;
     core::schelling::init_program_threshold(1, 2); // tau = 1/2
     for (auto _ : state) {
         core::Xoshiro256ss rng(0xDEADBEEFCAFELL);
@@ -43,7 +43,7 @@ struct LollipopSweepRegistrar {
         const std::string name = std::string("Schelling/Lollipop/CS=") + std::to_string(cs)
                                + "/PL=" + std::to_string(pl);
         auto* b = ::benchmark::RegisterBenchmark(name.c_str(), &BM_SchellingProcess<cs, pl>);
-        b->Iterations(1)
+        b->Iterations(3)
          ->Threads(tbb::global_control::active_value(tbb::global_control::max_allowed_parallelism))
          ->Unit(benchmark::kMillisecond);
     }
@@ -59,7 +59,7 @@ struct LollipopSweepRegistrar {
 };
 
 // Sweep configuration: CS in {50,100,...,Step*Count}, PL ≈ 9*CS
-static LollipopSweepRegistrar</*CS0*/50000, /*Step*/50, /*Count*/50,
+static LollipopSweepRegistrar</*CS0*/5000, /*Step*/50, /*Count*/50,
                                /*Num*/20, /*Den*/1, /*Offset*/0> g_lolli_sweep;
 } // namespace
 

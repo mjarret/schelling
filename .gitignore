@@ -44,3 +44,7 @@ compile_commands.json
 # IDE metadata
 /.idea/
 /.vscode/
+
+# Large generated artifacts (ignored to allow GitHub push)
+heatmap.csv
+heatmap.ppm

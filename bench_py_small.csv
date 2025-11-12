@@ -1,0 +1,13 @@
+2025-10-30T10:10:04-04:00
+Running ./py_hitting_time_bench
+Run on (24 X 5737 MHz CPU s)
+CPU Caches:
+  L1 Data 32 KiB (x12)
+  L1 Instruction 32 KiB (x12)
+  L2 Unified 1024 KiB (x12)
+  L3 Unified 32768 KiB (x2)
+Load Average: 0.47, 0.58, 0.67
+***WARNING*** CPU scaling is enabled, the benchmark real time measurements may be noisy and will incur extra overhead.
+***WARNING*** Library was built as DEBUG. Timings may be affected.
+name,iterations,real_time,cpu_time,time_unit,bytes_per_second,items_per_second,label,error_occurred,error_message
+"PySchelling/Lollipop/CS=50/PL=450/iterations:1/threads:1",1,37.6567,37.6569,ms,,26.5556,,,
