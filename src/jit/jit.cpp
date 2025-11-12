@@ -81,9 +81,9 @@ extern "C" int run_once(unsigned long long p, unsigned long long q, double densi
     core::schelling::init_program_threshold((core::color_count_t)p, (core::color_count_t)q);
     core::Xoshiro256ss rng(core::splitmix_hash(0xD1E5EEDULL));
     )CPP" << graph_type_expr << R"CPP( g;
-    auto history = sim::run_schelling_process(g, density, rng);
-    if (moves_out) *moves_out = history.empty() ? 0ULL : (unsigned long long)(history.size() - 1);
-    if (final_unhappy_out) *final_unhappy_out = history.empty() ? 0ULL : (unsigned long long)history.back();
+    auto moves = sim::run_schelling_process(g, density, rng);
+    if (moves_out) *moves_out = static_cast<unsigned long long>(moves);
+    if (final_unhappy_out) *final_unhappy_out = 0ULL; // terminal state has zero unhappy
     return 0;
 }
 )CPP";

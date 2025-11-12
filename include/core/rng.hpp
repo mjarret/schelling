@@ -51,6 +51,13 @@ inline std::uint64_t splitmix_hash(std::uint64_t x) {
 // that provides operator() returning a 64-bit value.
 template <class URBG>
 inline std::uint64_t uniform_bounded(URBG& rng, std::uint64_t n) noexcept {
+#if defined(__SIZEOF_INT128__)
+    // Lemire's multiply-high method using 128-bit intermediate
+    // Suppress pedantic warning about __int128 as a GCC/Clang extension.
+    #if defined(__GNUC__) || defined(__clang__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wpedantic"
+    #endif
     using u128 = unsigned __int128;
     std::uint64_t x = rng();
     u128 m = (u128)x * (u128)n;
@@ -59,7 +66,20 @@ inline std::uint64_t uniform_bounded(URBG& rng, std::uint64_t n) noexcept {
         const std::uint64_t t = (-n) % n;
         while (l < t) { x = rng(); m = (u128)x * (u128)n; l = (std::uint64_t)m; }
     }
+    #if defined(__GNUC__) || defined(__clang__)
+    #pragma GCC diagnostic pop
+    #endif
     return (std::uint64_t)(m >> 64);
+#else
+    // Fallback: unbiased rejection using modulo; avoids 128-bit types.
+    // Reference: "Fast Random Integer Generation in an Interval" (Vigna/Lemire),
+    // modulo-with-rejection variant.
+    for (;;) {
+        const std::uint64_t x = rng();
+        const std::uint64_t r = x % n;
+        if (x - r <= (std::numeric_limits<std::uint64_t>::max)() - (n - 1)) return r;
+    }
+#endif
 }
 
 // Two-way weighted pick: returns 0 with probability w0/(w0+w1), else 1.

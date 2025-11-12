@@ -46,6 +46,7 @@ Options parse_args(int argc, char** argv, bool& want_help, std::string& help_tex
         ("path-length", "Path length (compiled combos)", cxxopts::value<std::size_t>(opt.path_length)->default_value("450"))
         ("d,agent-density", "Agent density in [0,1] as p/q or decimal", cxxopts::value<std::string>(density_s)->default_value("0.8"))
         ("e,experiments", "Number of experiments (default 1000)", cxxopts::value<std::size_t>(opt.experiments)->default_value("1000"))
+        ("threads", "Number of threads (default: OMP_NUM_THREADS or max)", cxxopts::value<int>(opt.threads)->default_value("0"))
         ("m,max-steps", "Maximum steps per experiment (default ∞)", cxxopts::value<std::size_t>(max_steps_val))
     ;
     help_text = desc.help();

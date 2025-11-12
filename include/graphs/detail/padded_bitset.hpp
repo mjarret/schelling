@@ -166,6 +166,26 @@ public:
         return data_.kth_zero(k) - Padding;
     }
 
+    // Rejection-sampling variants (expected O(1) when target fraction is constant).
+    // Preconditions (ensured by callers in hot paths):
+    //  - random_setbit_index_rejection: count() > 0
+    //  - random_unsetbit_index_rejection: (B - count()) > 0
+    template<class URBG>
+    std::size_t random_setbit_index_rejection(URBG& rng) const noexcept {
+        for (;;) {
+            const std::size_t i = static_cast<std::size_t>(core::uniform_bounded(rng, static_cast<std::uint64_t>(B)));
+            if (data_[map_index_(i)]) return i;
+        }
+    }
+
+    template<class URBG>
+    std::size_t random_unsetbit_index_rejection(URBG& rng) const noexcept {
+        for (;;) {
+            const std::size_t i = static_cast<std::size_t>(core::uniform_bounded(rng, static_cast<std::uint64_t>(B)));
+            if (!data_[map_index_(i)]) return i;
+        }
+    }
+
 private:
     inline void apply_sentinels() noexcept {
         if constexpr (Padding == 0)  return; 

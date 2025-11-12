@@ -52,11 +52,17 @@ public:
     // O(1): return count of unhappy vertices from cached mask.
     inline count_t unhappy_count() const { return unhappy_mask_cache_.count(); }
 
-    // Uniform pick over unoccupied vertices (kth-zero based).
+    // Uniform pick over unoccupied vertices.
     template<class URBG>
     inline size_t get_unoccupied(URBG& rng) const noexcept {
         CORE_ASSERT_H(occ_.count() < B, "Path::get_unoccupied: no unoccupied vertices");
+        // Compile-time toggle: use rejection sampling to avoid O(W) kth-zero select.
+        // Define PATH_USE_REJECTION_UNOCCUPIED=1 to enable.
+#if defined(PATH_USE_REJECTION_UNOCCUPIED) && PATH_USE_REJECTION_UNOCCUPIED
+        return occ_.random_unsetbit_index_rejection(rng);
+#else
         return occ_.random_unsetbit_index(rng);
+#endif
     }
 
     // Uniform pick among currently-unhappy vertices from cached mask.

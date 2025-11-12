@@ -28,6 +28,10 @@ compile_commands.json
 /debug
 /gmon.out
 
+# Data/output artifacts
+/out/*
+!/out/.gitkeep
+
 # Vendor drops (if accidentally added)
 /boost_1_84_0/
 /boost-install/

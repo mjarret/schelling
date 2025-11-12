@@ -12,8 +12,8 @@ static void BM_Schelling_Lollipop(benchmark::State& state) {
     for (auto _ : state) {
         core::Xoshiro256ss rng(0xDEADBEEFCAFELL);
         graphs::LollipopGraph<CS, PL> g;
-        auto history = sim::run_schelling_process(g, 0.8, rng);
-        benchmark::DoNotOptimize(history.size());
+        auto moves = sim::run_schelling_process(g, 0.8, rng);
+        benchmark::DoNotOptimize(moves);
         benchmark::ClobberMemory();
     }
     state.SetItemsProcessed(state.iterations());
@@ -30,8 +30,8 @@ static void BM_Schelling_Lollipop_Batch(benchmark::State& state) {
         core::Xoshiro256ss rng(0xBEEFBABEULL);
         for (std::size_t i = 0; i < batch; ++i) {
             graphs::LollipopGraph<CS, PL> g;
-            auto history = sim::run_schelling_process(g, 0.8, rng);
-            benchmark::DoNotOptimize(history.size());
+            auto moves = sim::run_schelling_process(g, 0.8, rng);
+            benchmark::DoNotOptimize(moves);
         }
         benchmark::ClobberMemory();
     }
