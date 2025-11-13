@@ -1,8 +1,8 @@
 {
   "title": "Schelling — High-Performance C++20 Experiments",
   "upload_type": "software",
-  "publication_date": "2025-10-11",
-  "version": "0.01",
+  "publication_date": "2025-11-13",
+  "version": "0.02",
   "description": "High-performance C++20 implementations of Schelling segregation dynamics on structured graphs (clique, path, lollipop), with header-heavy, counts-first, branchless hot paths and optional JIT specialization.",
   "creators": [
     {
@@ -33,4 +33,3 @@
   ],
   "license": "other"
 }
-

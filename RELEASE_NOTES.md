@@ -1,3 +1,16 @@
+# Release 0.02 — 2025-11-13
+
+Highlights
+- Benchmarks: added `hitting_time_bench` (Google Benchmark) and updated sim/CLI plumbing and graph internals to support hitting-time measurements.
+- Python: introduced a Mesa-based Python version of the model with glue for benchmarking and comparison.
+- Repo hygiene: added scripts, benches, and data artifacts to aid reproducibility.
+
+Breaking/behavioral changes
+- None intended.
+
+Upgrade notes
+- Rebuild with `make` (default release flags) or `make bench` to build the C++ benchmarks.
+
 # Release 0.01 — 2025-10-11
 
 Highlights
@@ -14,4 +27,3 @@ Breaking/behavioral changes
 
 Upgrade notes
 - Rebuild with `make` (release) or `make profile` (gprof). Use `OMP_NUM_THREADS=1` for single‑threaded profiling clarity.
-

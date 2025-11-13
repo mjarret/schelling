@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: If you use this software, please cite it as follows.
 title: Schelling — High-Performance Experiments
 type: software
-version: 0.01
+version: 0.02
 authors:
   - family-names: Jarret
     given-names: Michael
@@ -13,7 +13,7 @@ authors:
       - Department of Computer Science, George Mason University
       - Quantum Science and Engineering Center, George Mason University
       - Center for Social Complexity, George Mason University
-date-released: 2025-10-11
+date-released: 2025-11-13
 repository-code: https://github.com/mjarret/schelling
 license: other
 keywords:
